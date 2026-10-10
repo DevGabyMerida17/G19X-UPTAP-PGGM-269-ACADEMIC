@@ -1,0 +1,57 @@
+# Levanta toda la plataforma: docker compose up --build
+# Después abre http://localhost:8080 (y http://localhost:8025 para ver los correos de prueba)
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: onboarding
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-onboarding}
+      POSTGRES_DB: onboarding
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onboarding"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://onboarding:${POSTGRES_PASSWORD:-onboarding}@postgres:5432/onboarding
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: http://localhost:8080
+      APP_URL: http://localhost:8080
+      # El correo se configura en backend/.env (SMTP_*). Para pruebas usa Mailpit:
+      # SMTP_HOST=mailpit, SMTP_PORT=1025, SMTP_STARTTLS=false
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  # Bandeja de correo de pruebas: muestra las invitaciones y los enlaces de cambio de contraseña
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  uploads:

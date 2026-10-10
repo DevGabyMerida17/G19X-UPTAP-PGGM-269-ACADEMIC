@@ -1,0 +1,20 @@
+# API
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+python-dotenv==1.2.4
+
+# Agentes e IA (LangChain + LangGraph + Azure OpenAI)
+langchain-core==1.6.6
+langchain-openai==1.6.7
+langgraph==1.2.12
+rank-bm25==0.2.2
+
+# Datos
+SQLAlchemy==2.1.3
+psycopg[binary]==3.3.6
+redis==8.1.0
+
+# Seguridad (contraseñas y tokens de Microsoft Entra ID)
+bcrypt==5.0.0
+PyJWT[crypto]==2.15.1

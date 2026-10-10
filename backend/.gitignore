@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+uploads/
+*.db
+.pytest_cache/
+correos_enviados/
+CUENTAS_DE_PRUEBA.md
