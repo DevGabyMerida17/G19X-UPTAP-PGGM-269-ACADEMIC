@@ -21,3 +21,8 @@ __pycache__/
 
 # DocumentaciÃ³n confidencial de onboarding
 /backend/conocimiento/
+
+# Entorno de Python y archivos locales de prueba
+.venv/
+correos_enviados/
+CUENTAS_DE_PRUEBA.md

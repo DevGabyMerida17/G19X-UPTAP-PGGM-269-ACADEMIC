@@ -1,20 +1,23 @@
-"""Agente Tutor orquestado con LangGraph. Usa un modelo de lenguaje real (Azure OpenAI u otro compatible).
+"""Chat del Tutor: orquestador (LangGraph) y los dos agentes que atienden las preguntas del colaborador.
 
-Flujo:
-                ┌─> recuperar ─┬─> responder_politicas ─┐
-                │              └─> explicar_tema ───────┤
-    clasificar ─┼─> ayudar_plataforma ──────────────────┤
-                ├─> guiar ──────────────────────────────┼─> FIN
-                └─> conversar ──────────────────────────┘
+La plataforma tiene 5 agentes de IA:
+  1. Conocimiento General  -> este archivo (chat)
+  2. Tutor de Onboarding    -> este archivo (chat)
+  3. Evaluador              -> evaluador.py (al terminar una evaluación)
+  4. Recomendador           -> recomendador.py (inicio del colaborador y "Mi equipo" del supervisor)
+  5. Asistente de RH        -> asistente_rh.py (panel de Recursos Humanos)
 
-Cada ruta es un agente especializado:
-- politicas: reglas o datos de PluriOne. Responde SOLO con los documentos oficiales que sube RH
-  (RAG), para no inventar fechas, montos ni prestaciones.
-- tema: cualquier pregunta de conocimiento (definiciones, explicaciones, ejemplos, cómo se hace algo).
-  Responde con el conocimiento del modelo; si hay documentos de PluriOne relacionados, también los usa.
-- plataforma: cómo se usa esta plataforma ("¿dónde veo mi avance?", "¿cómo subo un documento?").
-- siguiente_paso: revisa el avance real del colaborador y le dice qué sigue.
-- general: saludos y cualquier otra plática; responde de forma natural.
+Flujo del chat:
+                  ┌─> conocimiento_general ──────────────┐
+    orquestador ──┤                                      ├─> FIN
+                  └─> recuperar ─> tutor_onboarding ─────┘
+
+- El orquestador decide qué agente atiende la pregunta.
+- Conocimiento General: responde cualquier pregunta con el conocimiento del modelo, SIN consultar
+  documentos internos de PluriOne.
+- Tutor de Onboarding: guía al colaborador en su proceso, explica la plataforma, revisa su avance
+  y le dice qué sigue. Para políticas y procedimientos responde SOLO con la documentación oficial
+  que sube RH (RAG), para no inventar reglas, fechas ni prestaciones.
 """
 from typing import Callable, Literal, Optional, TypedDict
 
@@ -24,22 +27,28 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
-FUENTE_GENERAL = "Conocimiento general del Tutor IA (no es una política oficial)"
+from . import nombres_agentes
+
+# Los nombres se cambian en nombres_agentes.py
+AGENTE_CONOCIMIENTO = nombres_agentes.CONOCIMIENTO_GENERAL
+AGENTE_TUTOR = nombres_agentes.TUTOR_ONBOARDING
+FUENTE_GENERAL = "Conocimiento general del modelo (no es una política oficial)"
 FUENTE_PLATAFORMA = "Guía de uso de la plataforma"
 
-# Lo que el agente de ayuda sabe de la plataforma (menú del colaborador).
+# Lo que el Tutor sabe de la plataforma (menú del colaborador).
 GUIA_PLATAFORMA = """Secciones del menú lateral del colaborador:
 - Inicio: saludo, tu puesto, área y fecha de ingreso; "Continúa donde lo dejaste" con el módulo en curso;
-  "Tu ruta" con las tareas de Día 1, Semana 1 y Mes 1 (se marcan con la casilla); tu responsable y los
-  mensajes que te deja.
+  "Recomendaciones para ti" del Agente Recomendador; "Tu ruta" con las tareas de Día 1, Semana 1 y Mes 1
+  (se marcan con la casilla); tu responsable y los mensajes que te deja.
 - Documentos: lista de documentos que pide RH (identificación, comprobante de domicilio, datos bancarios,
   estudios). Se suben con el botón "Subir archivo" o arrastrando el archivo encima. Solo PDF, JPG o PNG de
   máximo 5 MB. Estados: Sin subir, En revisión, Validado o Rechazado (si se rechaza, aparece el motivo y el
   botón "Volver a subir").
 - Capacitación: módulos en orden; se desbloquean al terminar el anterior. Dentro de cada módulo se marca
   cada sección como leída y al final se completa el módulo.
-- Evaluaciones: se habilitan al terminar de leer el módulo que las tiene. Muestran la calificación y la
-  retroalimentación de cada respuesta; si no se alcanza el mínimo, se puede presentar de nuevo.
+- Evaluaciones: se habilitan al terminar de leer el módulo que las tiene. Cada evaluación tiene un número
+  limitado de intentos (normalmente 3). Al terminar, el Agente Evaluador explica los errores y qué temas
+  reforzar. Si se acaban los intentos, el responsable o RH pueden conceder uno más.
 - Tutor IA: este chat.
 - Mi avance: porcentaje general, módulos completados y pendientes, calificaciones y próximas actividades.
 Además, en el menú lateral está el "Progreso general" con un círculo por etapa (Bienvenida, Documentos,
@@ -55,6 +64,7 @@ class Estado(TypedDict, total=False):
     historial: list[dict]
     progreso: dict
     intencion: str
+    agente: str
     documentos: list
     respuesta: str
     fuentes: list[str]
@@ -62,16 +72,14 @@ class Estado(TypedDict, total=False):
 
 
 class Clasificacion(BaseModel):
-    intencion: Literal["politicas", "tema", "plataforma", "siguiente_paso", "general"] = Field(
+    intencion: Literal["conocimiento", "onboarding"] = Field(
         description=(
-            "politicas: reglas o datos propios de la empresa PluriOne (sus políticas, vacaciones, "
-            "beneficios, nómina, horario, dirección, procesos internos). "
-            "tema: cualquier pregunta de conocimiento: definiciones ('¿qué es...?'), explicaciones, "
-            "conceptos técnicos o de cualquier materia, ejemplos, cómo se hace algo, consejos. "
-            "plataforma: cómo usar esta plataforma o dónde encontrar algo en ella (ver avances, subir "
-            "documentos, presentar evaluaciones, cambiar contraseña, modo oscuro). "
-            "siguiente_paso: qué le toca hacer ahora, qué le falta o cómo va su propio avance. "
-            "general: saludos, agradecimientos o cualquier otra plática."
+            "onboarding: cualquier cosa sobre su incorporación a PluriOne: políticas o reglas de la empresa "
+            "(vacaciones, nómina, horario, beneficios, procesos internos), cómo usar esta plataforma (ver "
+            "avances, subir documentos, evaluaciones, contraseña), su avance o qué le toca hacer, sus "
+            "módulos, documentos o evaluaciones. "
+            "conocimiento: preguntas generales que no dependen de PluriOne: definiciones ('¿qué es...?'), "
+            "explicaciones de conceptos de cualquier tema, ejemplos, consejos, saludos o plática."
         )
     )
 
@@ -80,17 +88,22 @@ class RespuestaConFuentes(BaseModel):
     respuesta: str = Field(description="Respuesta en español, clara y bien organizada.")
     fuentes_usadas: list[int] = Field(
         default_factory=list,
-        description="Números [n] de los fragmentos de documentos que usaste. Vacío si no usaste ninguno.",
+        description="Números [n] de los fragmentos de documentos oficiales que usaste. Vacío si no usaste ninguno.",
     )
 
 
 PERSONA = (
-    "Eres el Tutor de PluriOne (Develop Talent & Technology), una empresa mexicana de consultoría, "
-    "desarrollo de software y capacitación en TI. Acompañas a colaboradores de nuevo ingreso: resuelves "
-    "sus dudas, les explicas lo que no entienden y los orientas en su proceso. Hablas en español de "
-    "México, con un tono amable, cercano y directo. Te diriges al colaborador por su nombre de pila "
-    "cuando es natural."
+    "Trabajas en la plataforma de bienvenida de PluriOne (Develop Talent & Technology), una empresa "
+    "mexicana de consultoría, desarrollo de software y capacitación en TI, que acompaña a colaboradores "
+    "de nuevo ingreso. Hablas en español de México, con un tono amable, cercano y directo. Te diriges "
+    "al colaborador por su nombre de pila cuando es natural. Nunca te refieras a nadie por números, "
+    "identificadores ni correos; si no tienes su nombre, háblale sin usar ninguno."
 )
+
+
+def linea_nombre(nombre: str | None) -> str:
+    """Cómo se le presenta el nombre del colaborador a un agente."""
+    return f"Nombre del colaborador: {nombre}" if nombre else "El colaborador no tiene un nombre registrado: no uses ningún nombre."
 
 
 def _historial(estado: Estado) -> list:
@@ -101,7 +114,7 @@ def _historial(estado: Estado) -> list:
     return msgs
 
 
-def _resumen_progreso(p: dict) -> str:
+def resumen_progreso(p: dict) -> str:
     if not p:
         return "Sin información de avance."
     lineas = [f"Avance general: {p.get('avance', '?')}%"]
@@ -112,20 +125,22 @@ def _resumen_progreso(p: dict) -> str:
             lineas.append(f"{titulo}:")
             lineas += [f"  - {x.get('titulo')}: {x.get('estado')}" for x in p[clave]]
     for e in p.get("evaluaciones", []):
-        lineas.append(f"Evaluación {e['modulo']}: {e['calificacion']}% (mínimo {e['minimo']}%)")
+        extra = ""
+        if "intentos_usados" in e:
+            extra = f", intentos {e['intentos_usados']} de {e['intentos_permitidos']}"
+        lineas.append(f"Evaluación {e['modulo']}: {e['calificacion']}% (mínimo {e['minimo']}%{extra})")
     if p.get("tareas_pendientes"):
         lineas.append("Tareas pendientes de su ruta:")
         lineas += [f"  - {t}" for t in p["tareas_pendientes"]]
     return "\n".join(lineas)
 
 
+# Se conserva el nombre anterior para no romper importaciones existentes.
+_resumen_progreso = resumen_progreso
+
+
 def _contexto(docs: list[Document]) -> str:
     return "\n\n".join(f"[{i + 1}] ({d.metadata['fuente']})\n{d.page_content}" for i, d in enumerate(docs))
-
-
-def _fuentes(docs: list[Document], numeros: list[int]) -> tuple[list[Document], list[str]]:
-    usados = [docs[n - 1] for n in numeros if 1 <= n <= len(docs)]
-    return usados, list(dict.fromkeys(d.metadata["fuente"] for d in usados))
 
 
 def crear_agente(llm: BaseChatModel, buscar: Callable[[str], list[Document]]):
@@ -135,112 +150,73 @@ def crear_agente(llm: BaseChatModel, buscar: Callable[[str], list[Document]]):
     def mensajes(estado: Estado, sistema: str) -> list:
         return [SystemMessage(content=sistema), *_historial(estado), HumanMessage(content=estado["pregunta"])]
 
-    def clasificar(estado: Estado) -> Estado:
+    def orquestador(estado: Estado) -> Estado:
         r = clasificador.invoke([
-            SystemMessage(content="Clasifica la última pregunta del colaborador según su intención."),
+            SystemMessage(content="Decide qué agente debe atender la última pregunta del colaborador."),
             *_historial(estado),
             HumanMessage(content=estado["pregunta"]),
         ])
         return {"intencion": r.intencion}
 
+    def conocimiento_general(estado: Estado) -> Estado:
+        sistema = (
+            f"Eres el {AGENTE_CONOCIMIENTO}. {PERSONA}\n\n"
+            "Responde cualquier pregunta con tu propio conocimiento, sea del tema que sea: explica conceptos, "
+            "resuelve dudas y da información clara y comprensible. Cuando ayude, primero la idea principal en "
+            "palabras sencillas, luego un ejemplo práctico y, si hace falta, pasos o una lista corta. Si es un "
+            "saludo o plática, responde de forma natural y breve. No uses ni menciones documentos internos de "
+            "PluriOne; si te preguntan una regla específica de la empresa, sugiere preguntarle al Tutor de "
+            "Onboarding o a RH. Rechaza con amabilidad solo lo dañino, ilegal o inapropiado para el trabajo. "
+            "Unas 200 palabras como máximo, salvo que pida más detalle.\n\n"
+            f"{linea_nombre(estado.get('nombre'))}"
+            + (f" ({estado['progreso']['puesto']})" if estado.get("progreso", {}).get("puesto") else "")
+        )
+        r = llm.invoke(mensajes(estado, sistema))
+        return {"respuesta": r.content, "fuentes": [FUENTE_GENERAL], "tema": "Conocimiento general",
+                "agente": AGENTE_CONOCIMIENTO}
+
     def recuperar(estado: Estado) -> Estado:
         return {"documentos": buscar(estado["pregunta"])}
 
-    def responder_politicas(estado: Estado) -> Estado:
+    def tutor_onboarding(estado: Estado) -> Estado:
         docs = estado.get("documentos", [])
         sistema = (
-            f"{PERSONA}\n\n"
-            "La pregunta es sobre reglas o datos propios de PluriOne. Responde SOLO con la información de "
-            "los fragmentos de documentos oficiales. Si los fragmentos no la contienen, dilo con honestidad, "
-            "explica en general cómo suele funcionar ese tema en las empresas en México aclarando que no es "
-            "la regla oficial de PluriOne, y sugiere confirmarlo con Recursos Humanos o su responsable. "
-            "Nunca inventes reglas, cifras, fechas ni prestaciones de PluriOne. Máximo 6 oraciones.\n\n"
-            f"Colaborador: {estado.get('nombre') or 'colaborador'}\n\n"
-            f"Fragmentos:\n{_contexto(docs) or '(no hay documentos oficiales sobre este tema)'}"
+            f"Eres el {AGENTE_TUTOR}. {PERSONA}\n\n"
+            "Guías al colaborador durante su incorporación. Según lo que pregunte:\n"
+            "- Políticas o procedimientos de PluriOne: responde SOLO con los fragmentos de documentos oficiales "
+            "y cita los que usaste. Si no contienen la respuesta, dilo con honestidad, explica en general cómo "
+            "suele funcionar en México aclarando que no es la regla oficial de PluriOne, y sugiere confirmarlo "
+            "con RH o su responsable. Nunca inventes reglas, cifras, fechas ni prestaciones.\n"
+            "- Cómo usar la plataforma: explica paso a paso con los nombres exactos de secciones y botones de "
+            "la guía.\n"
+            "- Su avance o qué le toca hacer: con base en su avance, dile el paso más importante y en qué "
+            "sección hacerlo, en este orden: 1) documentos rechazados o sin subir, 2) evaluación reprobada o "
+            "módulo en curso, 3) tareas pendientes de su ruta. Sé motivador.\n"
+            "Sé concreto: máximo 6 oraciones o una lista corta.\n\n"
+            f"Guía de la plataforma:\n{GUIA_PLATAFORMA}\n\n"
+            f"{linea_nombre(estado.get('nombre'))}\n"
+            f"Su avance:\n{resumen_progreso(estado.get('progreso', {}))}\n\n"
+            f"Fragmentos de documentos oficiales:\n{_contexto(docs) or '(no hay documentos relacionados)'}"
         )
         r = redactor.invoke(mensajes(estado, sistema))
-        usados, fuentes = _fuentes(docs, r.fuentes_usadas)
-        tema = next((d.metadata.get("tema") for d in usados if d.metadata.get("tema")), None)
-        return {"respuesta": r.respuesta, "fuentes": fuentes or [FUENTE_GENERAL], "tema": tema}
-
-    def explicar_tema(estado: Estado) -> Estado:
-        docs = estado.get("documentos", [])
-        sistema = (
-            f"{PERSONA}\n\n"
-            "El colaborador hizo una pregunta de conocimiento. Respóndela completa con tu propio "
-            "conocimiento, sea del tema que sea: primero la idea principal en palabras sencillas, luego un "
-            "ejemplo práctico (de preferencia relacionado con su trabajo) y, si ayuda, pasos o una lista "
-            "corta. No necesitas documentos para responder. Si alguno de los fragmentos de PluriOne es "
-            "relevante, úsalo y cítalo; si no, ignóralos. Adapta el nivel a alguien que está aprendiendo. "
-            "Unas 200 palabras como máximo, salvo que pida más detalle.\n\n"
-            f"Colaborador: {estado.get('nombre') or 'colaborador'}\n"
-            f"Su situación:\n{_resumen_progreso(estado.get('progreso', {}))}\n\n"
-            f"Fragmentos de documentos de PluriOne:\n{_contexto(docs) or '(ninguno relacionado)'}"
-        )
-        r = redactor.invoke(mensajes(estado, sistema))
-        usados, fuentes = _fuentes(docs, r.fuentes_usadas)
-        tema = next((d.metadata.get("tema") for d in usados if d.metadata.get("tema")), None) or "Capacitación"
-        return {"respuesta": r.respuesta, "fuentes": fuentes or [FUENTE_GENERAL], "tema": tema}
-
-    def ayudar_plataforma(estado: Estado) -> Estado:
-        sistema = (
-            f"{PERSONA}\n\n"
-            "El colaborador pregunta cómo usar esta plataforma. Explícale paso a paso dónde encontrar lo que "
-            "busca, usando los nombres exactos de las secciones y botones. Si su avance ayuda a la respuesta, "
-            "menciónalo. Si lo que pide no existe en la plataforma, dilo y sugiere contactar a RH. "
-            "Máximo 5 oraciones o una lista corta.\n\n"
-            f"Guía de la plataforma:\n{GUIA_PLATAFORMA}\n\n"
-            f"Colaborador: {estado.get('nombre') or 'colaborador'}\n"
-            f"Su avance:\n{_resumen_progreso(estado.get('progreso', {}))}"
-        )
-        r = llm.invoke(mensajes(estado, sistema))
-        return {"respuesta": r.content, "fuentes": [FUENTE_PLATAFORMA], "tema": "Uso de la plataforma"}
-
-    def guiar(estado: Estado) -> Estado:
-        sistema = (
-            f"{PERSONA}\n\n"
-            "El colaborador quiere saber qué hacer ahora o cómo va. Con base en su avance, "
-            "dile cuál es el paso más importante a seguir y por qué, en orden de prioridad: "
-            "1) documentos rechazados o sin subir, 2) el módulo en curso o una evaluación reprobada, "
-            "3) tareas pendientes de su ruta. Dile en qué sección de la plataforma hacerlo. "
-            "Sé concreto y motivador, máximo 4 oraciones.\n\n"
-            f"Guía de la plataforma:\n{GUIA_PLATAFORMA}\n\n"
-            f"Colaborador: {estado.get('nombre') or 'colaborador'}\n"
-            f"Avance actual:\n{_resumen_progreso(estado.get('progreso', {}))}"
-        )
-        r = llm.invoke(mensajes(estado, sistema))
-        return {"respuesta": r.content, "fuentes": ["Tu ruta de onboarding"], "tema": None}
-
-    def conversar(estado: Estado) -> Estado:
-        sistema = (
-            f"{PERSONA}\n\n"
-            "Responde de forma natural y útil a lo que te diga o pregunte, sea del tema que sea. "
-            "Solo rechaza con amabilidad lo que sea dañino, ilegal o inapropiado para el trabajo."
-        )
-        r = llm.invoke(mensajes(estado, sistema))
-        return {"respuesta": r.content, "fuentes": [], "tema": None}
+        usados = [docs[n - 1] for n in r.fuentes_usadas if 1 <= n <= len(docs)]
+        fuentes = list(dict.fromkeys(d.metadata["fuente"] for d in usados)) or [FUENTE_PLATAFORMA]
+        tema = next((d.metadata.get("tema") for d in usados if d.metadata.get("tema")), None) or "Onboarding"
+        return {"respuesta": r.respuesta, "fuentes": fuentes, "tema": tema, "agente": AGENTE_TUTOR}
 
     g = StateGraph(Estado)
-    g.add_node("clasificar", clasificar)
+    g.add_node("orquestador", orquestador)
+    g.add_node("conocimiento_general", conocimiento_general)
     g.add_node("recuperar", recuperar)
-    g.add_node("responder_politicas", responder_politicas)
-    g.add_node("explicar_tema", explicar_tema)
-    g.add_node("ayudar_plataforma", ayudar_plataforma)
-    g.add_node("guiar", guiar)
-    g.add_node("conversar", conversar)
+    g.add_node("tutor_onboarding", tutor_onboarding)
 
-    g.add_edge(START, "clasificar")
+    g.add_edge(START, "orquestador")
     g.add_conditional_edges(
-        "clasificar",
+        "orquestador",
         lambda e: e["intencion"],
-        {"politicas": "recuperar", "tema": "recuperar", "plataforma": "ayudar_plataforma",
-         "siguiente_paso": "guiar", "general": "conversar"},
+        {"conocimiento": "conocimiento_general", "onboarding": "recuperar"},
     )
-    g.add_conditional_edges(
-        "recuperar",
-        lambda e: e["intencion"],
-        {"politicas": "responder_politicas", "tema": "explicar_tema"},
-    )
-    for nodo in ("responder_politicas", "explicar_tema", "ayudar_plataforma", "guiar", "conversar"):
-        g.add_edge(nodo, END)
+    g.add_edge("recuperar", "tutor_onboarding")
+    g.add_edge("conocimiento_general", END)
+    g.add_edge("tutor_onboarding", END)
     return g.compile()

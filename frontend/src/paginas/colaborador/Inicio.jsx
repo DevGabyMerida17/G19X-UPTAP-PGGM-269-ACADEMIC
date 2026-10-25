@@ -1,9 +1,72 @@
-import { useResumen } from "../../App.jsx";
+import { useEffect, useState } from "react";
+import { BookOpen, ClipboardCheck, FileText, Library, MessageCircle, Target } from "lucide-react";
+import { useApp, useResumen } from "../../App.jsx";
 import { api } from "../../api.js";
 import { Barra, Vista, fecha, iniciales, useAccion } from "../../ui.jsx";
+import { nombreDePila } from "../../validaciones.js";
 
 const COLORES = { "Día 1": "var(--mint)", "Semana 1": "var(--sky)", "Mes 1": "var(--peach)" };
 const TIPOS = { comentario: "Comentario", solicitud: "Solicitud", apoyo: "Apoyo", seguimiento: "Seguimiento" };
+
+// Cada tipo de recomendación: ícono, texto del botón y a qué sección lleva.
+const ACCIONES = {
+  modulo: [BookOpen, "Ir al módulo", (r) => ["capacitacion", r.modulo_id ? { modulo: r.modulo_id } : {}]],
+  evaluacion: [ClipboardCheck, "Ir a evaluaciones", (r) => ["evaluaciones", r.modulo_id ? { modulo: r.modulo_id } : {}]],
+  documentos: [FileText, "Ir a documentos", () => ["documentos", {}]],
+  material: [Library, "Preguntar al Tutor", () => ["tutor", {}]],
+  tutor: [MessageCircle, "Abrir el Tutor", () => ["tutor", {}]],
+};
+
+/** Agente Recomendador: se pide aparte porque puede tardar unos segundos. Se vuelve a pedir si cambia el avance. */
+function Recomendaciones({ ir, avance }) {
+  const { config } = useApp();
+  const [datos, setDatos] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelado = false;
+    setError("");
+    api("/api/yo/recomendaciones")
+      .then((r) => !cancelado && setDatos(r))
+      .catch((e) => !cancelado && setError(e.status === 503 ? "" : e.message));
+    return () => { cancelado = true; };
+  }, [avance]);
+
+  if (!datos && !error) {
+    return (
+      <div className="card mt agente-card" aria-live="polite">
+        <div className="row"><span className="agente-ico"><Target size={18} strokeWidth={1.8} /></span><h3>Recomendaciones para ti</h3></div>
+        <p className="muted small mt-s">{config.agentes?.recomendador || "El Agente Recomendador"} está revisando tu avance…</p>
+      </div>
+    );
+  }
+  if (!datos) return error ? <div className="notice mt small">El Agente Recomendador no está disponible por ahora. {error}</div> : null;
+
+  return (
+    <div className="card mt agente-card">
+      <div className="row between wrap">
+        <div className="row"><span className="agente-ico"><Target size={18} strokeWidth={1.8} /></span><h3>Recomendaciones para ti</h3></div>
+        <span className="small muted">{datos.agente}</span>
+      </div>
+      <div className="stack mt">
+        {datos.recomendaciones.map((r, i) => {
+          const [Icono, boton, destino] = ACCIONES[r.tipo] || ACCIONES.tutor;
+          return (
+            <div key={i} className="recomendacion">
+              <span className="mark now" aria-hidden="true"><Icono size={15} strokeWidth={1.8} /></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <b>{r.titulo}</b>
+                <div className="small muted">{r.motivo}</div>
+                {r.pregunta_sugerida && <div className="small mt-s">Pregúntale: “{r.pregunta_sugerida}”</div>}
+              </div>
+              <button className="btn ghost sm" onClick={() => ir(...destino(r))}>{boton}</button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function Inicio({ ir }) {
   const resumen = useResumen();
@@ -22,7 +85,7 @@ export default function Inicio({ ir }) {
         return (
           <>
             <div className="head">
-              <h1>Hola, {d.nombre.split(" ")[0]}</h1>
+              <h1>{nombreDePila(d.nombre) ? `Hola, ${nombreDePila(d.nombre)}` : "Hola"}</h1>
               <p className="muted">Llevas {d.avance}% de tu proceso de incorporación.</p>
             </div>
             <div className="grid g3">
@@ -41,6 +104,8 @@ export default function Inicio({ ir }) {
                 <button className="btn" onClick={() => ir("capacitacion", { modulo: actual.id })}>▷ Continuar</button>
               </div>
             )}
+
+            <Recomendaciones ir={ir} avance={d.avance} />
 
             {d.observaciones.length > 0 && (
               <div className="notice peach mt">

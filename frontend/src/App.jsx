@@ -1,6 +1,6 @@
 import {
   BookOpen, ChartPie, ClipboardCheck, FileText, FolderCheck, House, Layers, LayoutDashboard, Library, ListChecks,
-  LogOut, MessageCircle, Users,
+  Bot, LogOut, MessageCircle, Users,
 } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api, onSesionExpirada, sesion } from "./api.js";
@@ -20,7 +20,9 @@ import Programas from "./paginas/rh/Programas.jsx";
 import Revision from "./paginas/rh/Revision.jsx";
 import Conocimiento from "./paginas/rh/Conocimiento.jsx";
 import Actividades from "./paginas/rh/Actividades.jsx";
+import AsistenteRH from "./paginas/rh/AsistenteRH.jsx";
 import Equipo from "./paginas/supervisor/Equipo.jsx";
+import { nombreVisible } from "./validaciones.js";
 
 const MENUS = {
   colaborador: {
@@ -37,6 +39,7 @@ const MENUS = {
       ["panel", LayoutDashboard, "Panel", Panel], ["colaboradores", Users, "Personal", Colaboradores],
       ["programas", Layers, "Programas y módulos", Programas], ["revision", FolderCheck, "Documentos", Revision],
       ["conocimiento", Library, "Base del Tutor IA", Conocimiento], ["actividades", ListChecks, "Actividades", Actividades],
+      ["asistente", Bot, "Asistente de RH", AsistenteRH],
     ],
   },
   supervisor: { nombre: "Supervisor", paginas: [["equipo", Users, "Mi equipo", Equipo]] },
@@ -132,7 +135,7 @@ function Plataforma({ usuario, salir }) {
       <header className="topbar">
         <div className="marca"><Marca /><span className="marca-sub">Onboarding</span></div>
         <div className="who">
-          <div className="name small" style={{ textAlign: "right" }}><b>{usuario.nombre}</b><div className="muted">{menu.nombre}</div></div>
+          <div className="name small" style={{ textAlign: "right" }}><b>{nombreVisible(usuario.nombre)}</b><div className="muted">{menu.nombre}</div></div>
           <BotonTema />
           <div className="avatar">{iniciales(usuario.nombre)}</div>
           <button className="btn ghost sm" onClick={salir}><LogOut size={15} strokeWidth={1.8} />Salir</button>

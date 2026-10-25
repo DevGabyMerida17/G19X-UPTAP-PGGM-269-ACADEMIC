@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import { Cargando } from "../ui.jsx";
 import { Aviso, Contrasena, MarcoAcceso } from "./Acceso.jsx";
+import { nombreDePila } from "../validaciones.js";
 
 /** Se abre desde el enlace del correo: activar cuenta (invitación de RH) o restablecer contraseña. */
 export default function NuevaPassword({ token, alTerminar }) {
@@ -52,7 +53,7 @@ export default function NuevaPassword({ token, alTerminar }) {
   const activar = info.tipo === "activar";
   return (
     <MarcoAcceso>
-      <h2>{activar ? `Hola, ${info.nombre.split(" ")[0]}` : "Crea una contraseña nueva"}</h2>
+      <h2>{activar ? (nombreDePila(info.nombre) ? `Hola, ${nombreDePila(info.nombre)}` : "Hola") : "Crea una contraseña nueva"}</h2>
       <p className="muted mt-s">
         {activar ? "Recursos Humanos creó tu cuenta. Crea tu contraseña para entrar a la plataforma." : `Para la cuenta ${info.correo}.`}
       </p>

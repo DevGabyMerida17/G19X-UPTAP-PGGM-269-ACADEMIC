@@ -274,3 +274,71 @@ def test_alta_envia_datos_de_acceso_por_correo(client, admin):
     texto = msg.get_body(preferencelist=("plain",)).get_content()
     assert "datos de acceso" in msg["Subject"]
     assert "lucia.fernandez@prueba.test" in texto and temporal in texto
+
+
+def _llegar_a_la_evaluacion(client, h):
+    """Completa los dos primeros módulos y lee el de Seguridad; devuelve (modulo, evaluacion)."""
+    mods = client.get("/api/yo/resumen", headers=h).json()["modulos"]
+    for m in mods[:2]:
+        for _ in range(m["total"]):
+            client.post(f"/api/yo/modulos/{m['id']}/leer", headers=h)
+        client.post(f"/api/yo/modulos/{m['id']}/completar", headers=h)
+    seg = client.get("/api/yo/resumen", headers=h).json()["modulos"][2]
+    for _ in range(seg["total"]):
+        client.post(f"/api/yo/modulos/{seg['id']}/leer", headers=h)
+    return seg, client.get(f"/api/yo/modulos/{seg['id']}/evaluacion", headers=h).json()
+
+
+def test_limite_de_3_intentos_e_intento_extra(client, admin, crear):
+    sup, sup_id = crear(rol="supervisor")
+    h, uid = crear(supervisor_id=sup_id)
+    seg, ev = _llegar_a_la_evaluacion(client, h)
+    assert ev["intentos"] == {"usados": 0, "permitidos": 3, "restantes": 3, "aprobada": False, "agotados": False}
+
+    mal = {"respuestas": {str(p["id"]): 0 for p in ev["preguntas"]}}
+    for n in range(3):
+        r = client.post(f"/api/yo/modulos/{seg['id']}/evaluacion", headers=h, json=mal).json()
+        assert r["intentos"]["usados"] == n + 1 and r["evaluacion_id"]
+    r = client.post(f"/api/yo/modulos/{seg['id']}/evaluacion", headers=h, json=mal)
+    assert r.status_code == 403 and "3 intentos" in r.json()["detail"]
+
+    # El responsable concede un intento más y se le avisa al colaborador
+    r = client.post(f"/api/supervisor/colaboradores/{uid}/modulos/{seg['id']}/intento-extra", headers=sup)
+    assert r.status_code == 200 and r.json()["restantes"] == 1
+    assert "intento más" in client.get("/api/yo/resumen", headers=h).json()["observaciones"][0]["texto"]
+    assert client.post(f"/api/yo/modulos/{seg['id']}/evaluacion", headers=h, json=mal).status_code == 200
+
+    # RH también puede concederlo, y puede cambiar el máximo por módulo
+    assert client.post(f"/api/supervisor/colaboradores/{uid}/modulos/{seg['id']}/intento-extra", headers=admin).status_code == 200
+    r = client.patch(f"/api/rh/modulos/{seg['id']}", headers=admin, json={"intentos_maximos": 5})
+    assert r.json()["intentos_maximos"] == 5
+    client.patch(f"/api/rh/modulos/{seg['id']}", headers=admin, json={"intentos_maximos": 3})
+
+
+def test_agentes_avisan_si_la_ia_no_esta_configurada(client, admin, crear):
+    h, _ = crear()
+    seg, ev = _llegar_a_la_evaluacion(client, h)
+    r = client.post(f"/api/yo/modulos/{seg['id']}/evaluacion", headers=h,
+                    json={"respuestas": {str(p["id"]): 0 for p in ev["preguntas"]}}).json()
+    assert client.post(f"/api/yo/evaluaciones/{r['evaluacion_id']}/retroalimentacion", headers=h).status_code == 503
+    assert client.get("/api/yo/recomendaciones", headers=h).status_code == 503
+    assert client.post("/api/rh/asistente", headers=admin, json={"pregunta": "¿Quién va retrasado?"}).status_code == 503
+    # Un colaborador no puede usar el Asistente de RH ni ver la evaluación de otro
+    assert client.post("/api/rh/asistente", headers=h, json={"pregunta": "hola"}).status_code == 403
+    otro, _ = crear()
+    assert client.post(f"/api/yo/evaluaciones/{r['evaluacion_id']}/retroalimentacion", headers=otro).status_code == 404
+
+
+def test_agentes_no_usan_numeros_como_nombre(client, admin, crear):
+    from app.validaciones import nombre_de_pila, nombre_para_mostrar
+    assert nombre_de_pila("23344") is None and nombre_de_pila("Ana Torres") == "Ana"
+    assert nombre_para_mostrar("23344", "j@x.mx") == "Sin nombre registrado (j@x.mx)"
+
+    h, uid = crear(nombre="23344")
+    saludo = client.get("/api/tutor/historial", headers=h).json()["mensajes"][0]["texto"]
+    assert saludo.startswith("¡Hola!") and "23344" not in saludo
+
+    # RH corrige el nombre (con las mismas reglas) y el saludo ya usa el nombre real
+    assert client.patch(f"/api/rh/usuarios/{uid}", headers=admin, json={"nombre": "Jesús 23"}).status_code == 422
+    r = client.patch(f"/api/rh/usuarios/{uid}", headers=admin, json={"nombre": "jesús rizo"})
+    assert r.json()["nombre"] == "Jesús Rizo"

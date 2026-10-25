@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { Contrasena, MarcoAcceso } from "./Acceso.jsx";
+import { nombreDePila } from "../validaciones.js";
 
 /** Primer inicio de sesión: la persona entró con la contraseña temporal que le dio RH y debe crear la suya. */
 export default function CambioObligatorio({ usuario, alTerminar, salir }) {
@@ -28,7 +29,7 @@ export default function CambioObligatorio({ usuario, alTerminar, salir }) {
 
   return (
     <MarcoAcceso>
-      <h2>Hola, {usuario.nombre.split(" ")[0]}</h2>
+      <h2>{nombreDePila(usuario.nombre) ? `Hola, ${nombreDePila(usuario.nombre)}` : "Hola"}</h2>
       <p className="muted mt-s">Entraste con una contraseña temporal. Antes de continuar, crea tu propia contraseña; solo tú la conocerás.</p>
       <form className="stack mt" onSubmit={enviar} noValidate>
         <input type="email" name="usuario" autoComplete="username" value={usuario.correo} readOnly hidden />

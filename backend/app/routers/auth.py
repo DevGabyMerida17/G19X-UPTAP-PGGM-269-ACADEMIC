@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import cache, config, correo
+from .. import cache, config, correo, nombres_agentes
 from ..db import get_db
 from ..models import AREAS, Usuario
 from ..validaciones import validar_correo
@@ -87,6 +87,7 @@ def configuracion_publica():
         "ia_configurada": config.ia_configurada(),
         "entra": {"tenant_id": config.ENTRA_TENANT_ID, "client_id": config.ENTRA_CLIENT_ID} if config.entra_configurado() else None,
         "areas": list(AREAS),
+        "agentes": nombres_agentes.todos(),
     }
 
 

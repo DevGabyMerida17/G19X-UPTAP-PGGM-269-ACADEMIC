@@ -1,13 +1,22 @@
-"""Prueba el flujo de LangGraph con un modelo simulado (no llama a Azure)."""
+"""Prueba los 5 agentes con un modelo simulado (no llama a ningún servicio de IA)."""
+import asyncio
+
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage
 
-from app.agente import FUENTE_GENERAL, Clasificacion, RespuestaConFuentes, crear_agente
+from app import asistente_rh, evaluador, nombres_agentes, recomendador
+from app.agente import (
+    AGENTE_CONOCIMIENTO, AGENTE_TUTOR, FUENTE_GENERAL, FUENTE_PLATAFORMA, Clasificacion, RespuestaConFuentes,
+    crear_agente,
+)
 
 
 class ModeloFalso:
-    def __init__(self, intencion):
+    """Devuelve respuestas fijas y guarda los mensajes que recibió, para revisar los prompts."""
+
+    def __init__(self, intencion="onboarding", estructurado=None):
         self.intencion = intencion
+        self.estructurado = estructurado or {}
         self.prompts = []
 
     def with_structured_output(self, esquema, method=None):
@@ -18,12 +27,17 @@ class ModeloFalso:
                 modelo.prompts.append(mensajes)
                 if esquema is Clasificacion:
                     return Clasificacion(intencion=modelo.intencion)
-                return RespuestaConFuentes(respuesta="Se piden con 15 días de anticipación.", fuentes_usadas=[1])
+                if esquema is RespuestaConFuentes:
+                    return RespuestaConFuentes(respuesta="Se piden con 15 días de anticipación.", fuentes_usadas=[1])
+                return esquema(**modelo.estructurado)
         return Estructurado()
 
     def invoke(self, mensajes):
         self.prompts.append(mensajes)
-        return AIMessage(content="Sube tu Formato de datos bancarios.")
+        return AIMessage(content="Una API permite que dos sistemas se comuniquen.")
+
+    async def ainvoke(self, mensajes):
+        return self.invoke(mensajes)
 
 
 def buscar(_pregunta):
@@ -31,60 +45,85 @@ def buscar(_pregunta):
                      metadata={"fuente": "Políticas internas · Vacaciones", "tema": "Políticas"})]
 
 
-def test_ruta_politicas_usa_rag():
-    agente = crear_agente(ModeloFalso("politicas"), buscar)
+def test_conocimiento_general_no_usa_documentos():
+    llamadas = []
+    modelo = ModeloFalso("conocimiento")
+    agente = crear_agente(modelo, lambda p: llamadas.append(p) or [])
+    r = agente.invoke({"pregunta": "¿Qué es una API?", "nombre": "Ana", "historial": [], "progreso": {}})
+    assert r["agente"] == AGENTE_CONOCIMIENTO
+    assert r["fuentes"] == [FUENTE_GENERAL]
+    assert llamadas == []  # nunca consulta la base de conocimiento de PluriOne
+    assert "No uses ni menciones documentos internos" in modelo.prompts[-1][0].content
+
+
+def test_tutor_responde_politicas_con_documentos_oficiales():
+    agente = crear_agente(ModeloFalso("onboarding"), buscar)
     r = agente.invoke({"pregunta": "¿Cómo pido vacaciones?", "nombre": "Ana", "historial": [], "progreso": {}})
-    assert r["intencion"] == "politicas"
+    assert r["agente"] == AGENTE_TUTOR
     assert r["fuentes"] == ["Políticas internas · Vacaciones"]
     assert r["tema"] == "Políticas"
 
 
-def test_ruta_siguiente_paso_usa_progreso():
-    modelo = ModeloFalso("siguiente_paso")
-    agente = crear_agente(modelo, buscar)
+def test_tutor_explica_plataforma_y_avance():
+    modelo = ModeloFalso("onboarding")
+    agente = crear_agente(modelo, lambda _p: [])
     progreso = {"avance": 20, "documentos": [{"titulo": "Formato de datos bancarios", "estado": "rechazado"}]}
-    r = agente.invoke({"pregunta": "¿Qué hago ahora?", "nombre": "Ana", "historial": [], "progreso": progreso})
-    assert r["intencion"] == "siguiente_paso"
-    assert "Formato de datos bancarios: rechazado" in modelo.prompts[-1][0].content
-    assert r["respuesta"].startswith("Sube")
+    r = agente.invoke({"pregunta": "¿Qué me toca hacer?", "nombre": "Ana", "historial": [], "progreso": progreso})
+    sistema = modelo.prompts[-1][0].content
+    assert "Mi avance" in sistema and "Formato de datos bancarios: rechazado" in sistema
+    # Sin documentos relacionados la fuente es la guía de la plataforma
+    assert r["agente"] == AGENTE_TUTOR
 
 
-def test_ruta_tema_explica_con_conocimiento_general():
-    """Dudas de aprendizaje (p. ej. '¿qué es Docker?') se responden aunque no haya documentos de RH."""
-    modelo = ModeloFalso("tema")
-    agente = crear_agente(modelo, lambda _p: [])
-    r = agente.invoke({"pregunta": "¿Qué es Docker?", "nombre": "Ana", "historial": [], "progreso": {"puesto": "QA"}})
-    assert r["intencion"] == "tema"
-    assert r["fuentes"] == [FUENTE_GENERAL]
-    assert "No necesitas documentos" in modelo.prompts[-1][0].content
-
-
-def test_ruta_tema_cita_documentos_si_existen():
-    agente = crear_agente(ModeloFalso("tema"), buscar)
-    r = agente.invoke({"pregunta": "Explícame las vacaciones", "nombre": "Ana", "historial": [], "progreso": {}})
-    assert r["fuentes"] == ["Políticas internas · Vacaciones"]
-
-
-def test_ruta_plataforma_explica_como_usarla():
-    """'¿Cómo veo mis avances?' se responde con la guía de la plataforma, sin documentos de RH."""
-    from app.agente import FUENTE_PLATAFORMA
-    modelo = ModeloFalso("plataforma")
-    agente = crear_agente(modelo, lambda _p: [])
-    r = agente.invoke({"pregunta": "¿Cómo puedo ver mis avances?", "nombre": "Ana", "historial": [], "progreso": {"avance": 30}})
-    assert r["intencion"] == "plataforma"
+def test_tutor_sin_documentos_usa_guia_como_fuente():
+    class SinFuentes(ModeloFalso):
+        def with_structured_output(self, esquema, method=None):
+            if esquema is RespuestaConFuentes:
+                class E:
+                    def invoke(self, m):
+                        return RespuestaConFuentes(respuesta="Ve a Mi avance.", fuentes_usadas=[])
+                return E()
+            return super().with_structured_output(esquema, method)
+    r = crear_agente(SinFuentes("onboarding"), lambda _p: []).invoke(
+        {"pregunta": "¿Dónde veo mi avance?", "nombre": "Ana", "historial": [], "progreso": {}})
     assert r["fuentes"] == [FUENTE_PLATAFORMA]
-    assert "Mi avance" in modelo.prompts[-1][0].content
 
 
-def test_ruta_general_responde_sin_redirigir():
-    modelo = ModeloFalso("general")
-    agente = crear_agente(modelo, lambda _p: [])
-    r = agente.invoke({"pregunta": "¿Me recomiendas un libro?", "nombre": "Ana", "historial": [], "progreso": {}})
-    assert r["intencion"] == "general" and r["respuesta"]
-    assert "Responde de forma natural" in modelo.prompts[-1][0].content
+def test_agente_evaluador():
+    modelo = ModeloFalso(estructurado={
+        "resumen": "Vas bien, repasa phishing.", "temas_a_reforzar": ["Phishing", "Contraseñas", "Datos", "Extra"],
+        "siguiente_paso": "Repasa la sección 2.",
+        "errores": [{"numero": 1, "explicacion": "El correo pedía tu contraseña."}, {"numero": 9, "explicacion": "no existe"}],
+    })
+    datos = {"modulo": "Seguridad", "contenido": "Phishing...", "calificacion": 50, "minimo": 70, "aprobada": False,
+             "intentos_restantes": 2, "nombre": "Ana",
+             "preguntas": [{"texto": "¿Qué haces con un correo raro?", "opciones": ["Responder", "Reportar"],
+                            "elegida": 0, "correcta": 1, "acierto": False},
+                           {"texto": "¿2FA?", "opciones": ["Sí", "No"], "elegida": 0, "correcta": 0, "acierto": True}]}
+    r = evaluador.evaluar(modelo, datos)
+    assert r["agente"] == nombres_agentes.EVALUADOR
+    assert [e["numero"] for e in r["errores"]] == [1]  # descarta preguntas que no existen
+    assert len(r["temas_a_reforzar"]) == 3
+    assert "Intentos que le quedan: 2" in modelo.prompts[-1][1].content
 
 
-def test_politicas_sin_documentos_no_se_queda_sin_respuesta():
-    agente = crear_agente(ModeloFalso("politicas"), lambda _p: [])
-    r = agente.invoke({"pregunta": "¿Hay bono de puntualidad?", "nombre": "Ana", "historial": [], "progreso": {}})
-    assert r["respuesta"] and r["fuentes"] == [FUENTE_GENERAL]
+def test_agente_recomendador():
+    modelo = ModeloFalso(estructurado={"recomendaciones": [
+        {"titulo": "Repasa Seguridad", "motivo": "Reprobaste", "tipo": "modulo", "modulo_id": 3},
+        {"titulo": "Pregunta al Tutor", "motivo": "Dudas", "tipo": "tutor", "modulo_id": 99, "pregunta_sugerida": "¿Qué es phishing?"},
+    ]})
+    r = recomendador.recomendar_colaborador(modelo, "Ana", {"avance": 40}, [{"id": 3, "titulo": "Seguridad", "estado": "en_curso"}],
+                                            ["Políticas internas"], ["Phishing"])
+    assert r["agente"] == nombres_agentes.RECOMENDADOR
+    assert r["recomendaciones"][0]["modulo_id"] == 3
+    assert r["recomendaciones"][1]["modulo_id"] is None  # id inexistente se descarta
+    texto = asyncio.run(recomendador.recomendar_seguimiento(
+        modelo, {"nombre": "Ana", "puesto": "QA", "area": "Desarrollo", "fecha_ingreso": "2026-10-01", "estado": "en_curso"}, {}))
+    assert texto
+
+
+def test_asistente_rh_usa_datos_de_la_plataforma():
+    modelo = ModeloFalso()
+    asistente_rh.responder(modelo, "¿Quién va retrasado?", [], "- Sofía Méndez | retrasado", "Laura")
+    sistema = modelo.prompts[-1][0].content
+    assert "Sofía Méndez | retrasado" in sistema and "No inventes" in sistema

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Pencil } from "lucide-react";
 import { useApp } from "../../App.jsx";
 import { api } from "../../api.js";
 import { errorCorreo, errorNombre, propsCorreo, propsNombre } from "../../validaciones.js";
@@ -122,7 +122,7 @@ export default function Colaboradores() {
                   <tbody>{cs.map((c) => (
                     <tr key={c.id}>
                       <td><div className="row"><div className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{iniciales(c.nombre)}</div>
-                        <div><b title={c.correo}>{c.nombre}</b><div className="small muted">{c.puesto} · ingresó {fecha(c.fecha_ingreso)}</div>
+                        <div><NombreEditable u={c} alGuardar={recargar} /><div className="small muted">{c.puesto} · ingresó {fecha(c.fecha_ingreso)}</div>
                           <div className="small muted">{c.correo}</div></div></div></td>
                       <td>
                         <select value={c.supervisor_id || ""} aria-label={`Responsable de ${c.nombre}`} disabled={!c.activo || ocupado}
@@ -153,7 +153,7 @@ export default function Colaboradores() {
                 <thead><tr><th>Nombre</th><th>Rol</th><th>Área</th><th>A su cargo</th><th>Estado</th><th></th></tr></thead>
                 <tbody>{filtrados.map((u) => (
                   <tr key={u.id}>
-                    <td><b>{u.nombre}</b>{u.id === usuario.id && <span className="small muted"> (tú)</span>}<div className="small muted">{u.correo}</div></td>
+                    <td><NombreEditable u={u} alGuardar={recargar} />{u.id === usuario.id && <span className="small muted"> (tú)</span>}<div className="small muted">{u.correo}</div></td>
                     <td>{ROLES[u.rol]}</td>
                     <td className="muted">{u.area}</td>
                     <td>{u.rol === "supervisor" ? `${u.a_cargo} ${u.a_cargo === 1 ? "colaborador" : "colaboradores"}` : "—"}</td>
@@ -168,6 +168,49 @@ export default function Colaboradores() {
       )}
       <p className="small muted mt">Al dar de baja a una persona, ya no podrá entrar: verá un aviso de que su cuenta está inactiva. Si era responsable, sus colaboradores quedan sin asignar.</p>
     </>
+  );
+}
+
+/** Nombre de la persona con un botón para corregirlo (mismas reglas que al dar de alta).
+    Si quedó registrado con números, se marca en rojo para que RH lo corrija. */
+function NombreEditable({ u, alGuardar }) {
+  const [editando, setEditando] = useState(false);
+  const [error, setError] = useState("");
+  const [ejecutar, ocupado] = useAccion();
+  const invalido = !!errorNombre(u.nombre);
+
+  const guardar = async (e) => {
+    e.preventDefault();
+    const nombre = new FormData(e.target).get("nombre");
+    const err = errorNombre(nombre);
+    setError(err);
+    if (err) return;
+    if (await ejecutar(() => api(`/api/rh/usuarios/${u.id}`, { metodo: "PATCH", datos: { nombre } }), "Nombre actualizado")) {
+      setEditando(false);
+      alGuardar();
+    }
+  };
+
+  if (editando) {
+    return (
+      <form onSubmit={guardar} className="nombre-editable">
+        <input type="text" name="nombre" defaultValue={invalido ? "" : u.nombre} placeholder="Nombre y apellido"
+          autoFocus aria-label="Nombre completo" {...propsNombre} />
+        <button className="btn sm" disabled={ocupado}>Guardar</button>
+        <button type="button" className="btn ghost sm" onClick={() => { setEditando(false); setError(""); }}>Cancelar</button>
+        <span className="err-msg" style={{ flexBasis: "100%" }}>{error}</span>
+      </form>
+    );
+  }
+  return (
+    <span className="row" style={{ gap: 6, display: "inline-flex" }}>
+      {invalido
+        ? <b style={{ color: "var(--rose-ink)" }} title={`Registrado como "${u.nombre}"`}>Sin nombre registrado</b>
+        : <b title={u.correo}>{u.nombre}</b>}
+      <button type="button" className="link small" onClick={() => setEditando(true)} aria-label={`Corregir el nombre de ${u.correo}`}>
+        <Pencil size={13} strokeWidth={1.8} />{invalido ? " Corregir" : ""}
+      </button>
+    </span>
   );
 }
 

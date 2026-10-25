@@ -1,4 +1,6 @@
 """Portal del colaborador: su ruta, capacitación, evaluaciones y documentos."""
+import hashlib
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -6,14 +8,17 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import cache, config
+from .. import cache, config, evaluador, ia, recomendador
 from ..db import get_db
 from ..models import (
-    Comentario, DocumentoColaborador, Evaluacion, Modulo, ProgresoModulo, Tarea, TareaColaborador, TipoDocumento,
-    Usuario, ahora,
+    Comentario, DocumentoColaborador, DocumentoConocimiento, Evaluacion, Modulo, ProgresoModulo, Tarea,
+    TareaColaborador, TipoDocumento, Usuario, ahora,
 )
 from ..seguridad import requiere_rol
-from ..servicios import documentos_de, estado_modulos, evaluaciones_de, ficha, tareas_de
+from ..validaciones import nombre_de_pila
+from ..servicios import (
+    documentos_de, estado_modulos, evaluaciones_de, ficha, intentos, progreso_para_tutor, tareas_de,
+)
 
 router = APIRouter(prefix="/api/yo", tags=["colaborador"])
 colaborador = requiere_rol("colaborador")
@@ -119,6 +124,7 @@ def ver_evaluacion(modulo_id: int, u: Usuario = Depends(colaborador), db: Sessio
     return {
         "modulo": m.titulo, "minimo": m.puntuacion_minima,
         "disponible": estado["leidas"] >= estado["total"],
+        "intentos": intentos(db, u, m),
         "preguntas": [{"id": p.id, "texto": p.texto, "opciones": p.opciones} for p in m.preguntas],
     }
 
@@ -134,6 +140,12 @@ def contestar_evaluacion(modulo_id: int, datos: Respuestas, u: Usuario = Depends
         raise HTTPException(404, "Este módulo no tiene evaluación.")
     if estado["leidas"] < estado["total"]:
         raise HTTPException(400, "Lee todo el módulo antes de presentar la evaluación.")
+    it = intentos(db, u, m)
+    if it["aprobada"]:
+        raise HTTPException(400, "Ya aprobaste esta evaluación.")
+    if it["agotados"]:
+        raise HTTPException(403, f"Ya usaste tus {it['permitidos']} intentos de esta evaluación. Tu responsable o "
+                                 "Recursos Humanos pueden concederte otro; mientras tanto, repasa el módulo.")
     resultado = []
     for p in m.preguntas:
         elegida = datos.respuestas.get(p.id, -1)
@@ -142,12 +154,68 @@ def contestar_evaluacion(modulo_id: int, datos: Respuestas, u: Usuario = Depends
                           "retroalimentacion": "" if elegida == p.correcta else p.retroalimentacion})
     calificacion = round(sum(r["acierto"] for r in resultado) / len(resultado) * 100)
     aprobada = calificacion >= m.puntuacion_minima
-    db.add(Evaluacion(usuario_id=u.id, modulo_id=m.id, calificacion=calificacion, aprobada=aprobada, respuestas=resultado))
+    ev = Evaluacion(usuario_id=u.id, modulo_id=m.id, calificacion=calificacion, aprobada=aprobada, respuestas=resultado)
+    db.add(ev)
     if aprobada:
         _completar(db, u, m)
     db.commit()
     _avisar(u)
-    return {"calificacion": calificacion, "aprobada": aprobada, "minimo": m.puntuacion_minima, "resultado": resultado}
+    return {"evaluacion_id": ev.id, "calificacion": calificacion, "aprobada": aprobada, "minimo": m.puntuacion_minima,
+            "resultado": resultado, "intentos": intentos(db, u, m)}
+
+
+@router.post("/evaluaciones/{evaluacion_id}/retroalimentacion")
+def retroalimentacion(evaluacion_id: int, u: Usuario = Depends(colaborador), db: Session = Depends(get_db)):
+    """Agente Evaluador: explica los errores y qué reforzar. Se genera una sola vez y se guarda."""
+    ev = db.get(Evaluacion, evaluacion_id)
+    if not ev or ev.usuario_id != u.id:
+        raise HTTPException(404, "Evaluación no encontrada.")
+    if ev.retro_ia:
+        return ev.retro_ia
+    m = ev.modulo
+    por_id = {p.id: p for p in m.preguntas}
+    preguntas = []
+    for r in ev.respuestas or []:
+        p = por_id.get(r["pregunta_id"])
+        if p:
+            preguntas.append({"texto": p.texto, "opciones": p.opciones, "elegida": r["elegida"],
+                              "correcta": p.correcta, "acierto": r["acierto"]})
+    contenido = "\n\n".join(f"{s['titulo']}\n{s['contenido']}" for s in m.secciones or [])
+    datos = {"modulo": m.titulo, "contenido": contenido, "preguntas": preguntas, "calificacion": ev.calificacion,
+             "minimo": m.puntuacion_minima, "aprobada": ev.aprobada,
+             "intentos_restantes": intentos(db, u, m)["restantes"], "nombre": nombre_de_pila(u.nombre)}
+    try:
+        retro = evaluador.evaluar(ia.obtener_llm(), datos)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"El Agente Evaluador no respondió ({type(e).__name__}). Intenta de nuevo.") from e
+    ev.retro_ia = retro
+    db.commit()
+    return retro
+
+
+@router.get("/recomendaciones")
+def recomendaciones(u: Usuario = Depends(colaborador), db: Session = Depends(get_db)):
+    """Agente Recomendador para el colaborador. Se guarda en Redis mientras su avance no cambie."""
+    progreso = progreso_para_tutor(db, u)
+    temas = sorted({t for e in db.scalars(select(Evaluacion).where(Evaluacion.usuario_id == u.id)) if e.retro_ia
+                    for t in e.retro_ia.get("temas_a_reforzar", [])})
+    huella = hashlib.sha1(json.dumps([progreso, temas], sort_keys=True, default=str).encode()).hexdigest()[:16]
+    clave = f"recomendaciones:{u.id}:{huella}"
+    guardadas = cache.r().get(clave)
+    if guardadas:
+        return json.loads(guardadas)
+    modulos = [{"id": m["id"], "titulo": m["titulo"], "estado": m["estado"]} for m in estado_modulos(db, u)]
+    materiales = [d.titulo for d in db.scalars(select(DocumentoConocimiento).order_by(DocumentoConocimiento.titulo))]
+    try:
+        r = recomendador.recomendar_colaborador(ia.obtener_llm(), nombre_de_pila(u.nombre), progreso, modulos, materiales, temas)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(502, f"El Agente Recomendador no respondió ({type(e).__name__}). Intenta de nuevo.") from e
+    cache.r().set(clave, json.dumps(r, ensure_ascii=False), ex=3600)
+    return r
 
 
 # ---------- Documentos ----------

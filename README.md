@@ -27,16 +27,23 @@ Proyecto de estadía para **PluriOne S.A. de C.V. (Develop Talent & Technology)*
 - **Responsables:** cada colaborador tiene un supervisor responsable que RH asigna o cambia. Cada supervisor ve solo a las personas que tiene asignadas.
 - **Primera cuenta de RH:** se crea al arrancar con `ADMIN_CORREO` del archivo `.env`. Si no pones `ADMIN_PASSWORD`, le llega el correo de invitación.
 
-## Cómo funciona el Tutor IA
+## Agentes de IA
 
-El Tutor usa **Azure OpenAI de verdad**: cada pregunta se envía al modelo. No hay respuestas escritas en el código. Funciona como un grafo de **LangGraph**:
+La plataforma tiene **5 agentes**. Todos usan un modelo de lenguaje real (Azure OpenAI o un servicio compatible); no hay respuestas escritas en el código.
 
-1. **clasificar**: el modelo decide qué tipo de pregunta es.
-2. **Dudas de la empresa** (vacaciones, nómina, políticas): busca en la base de conocimiento que administra RH y responde **solo** con esos documentos, citando la fuente, para no inventar reglas ni fechas.
-3. **Dudas de aprendizaje** ("¿qué es Docker?", "explícame Scrum con un ejemplo", "¿cómo reconozco un phishing?"): el modelo explica con su propio conocimiento, adaptado al puesto y avance del colaborador. Si hay documentos de PluriOne relacionados, también los usa y los cita.
-4. **¿Qué hago ahora?**: revisa el avance real del colaborador (documentos, módulos, evaluaciones y tareas) y le dice su siguiente paso.
+| Agente | Dónde trabaja | Qué hace | Archivo |
+|---|---|---|---|
+| **Agente de Conocimiento General** | Chat del Tutor IA | Responde preguntas generales, explica conceptos y resuelve dudas de cualquier tema con el conocimiento del modelo, **sin** consultar documentos internos. | `backend/app/agente.py` |
+| **Tutor de Onboarding** | Chat del Tutor IA | Guía al colaborador en su incorporación, explica cómo usar la plataforma, revisa su avance y le dice qué sigue. Para políticas y procedimientos responde **solo** con la documentación oficial que sube RH (RAG) y cita la fuente. | `backend/app/agente.py` |
+| **Agente Evaluador** | Al terminar una evaluación | La calificación la calcula el sistema; el agente explica cada error, dice qué temas reforzar y orienta según los intentos que quedan. Cada evaluación tiene **3 intentos** (RH lo cambia por módulo; el responsable o RH pueden conceder uno más). | `backend/app/evaluador.py` |
+| **Agente Recomendador** | Inicio del colaborador y "Mi equipo" del supervisor | Analiza el progreso y los temas débiles y recomienda módulos, materiales y actividades. Al supervisor le sugiere cómo dar seguimiento. | `backend/app/recomendador.py` |
+| **Asistente de RH** | Panel de RH → "Asistente de RH" | Responde preguntas de RH con los datos reales de la plataforma ("¿quién va retrasado?", "¿cuántos documentos faltan por revisar?"). | `backend/app/asistente_rh.py` |
 
-Para que responda, el backend necesita los datos de Azure OpenAI (ver abajo). Sin ellos, el chat avisa que falta la clave.
+En el chat, un **orquestador** hecho con **LangGraph** decide si la pregunta la atiende el Agente de Conocimiento General o el Tutor de Onboarding.
+
+**Cambiar los nombres de los agentes:** edítalos en `backend/app/nombres_agentes.py` y reinicia el backend. El nombre nuevo aparece en el chat, las evaluaciones, las recomendaciones y el panel de RH, y también en las instrucciones de cada agente.
+
+Para que respondan, el backend necesita los datos de un modelo de IA en `backend/.env` (ver abajo). Sin ellos, cada agente avisa que la IA no está configurada.
 
 ## Ejecutar con Docker (recomendado)
 

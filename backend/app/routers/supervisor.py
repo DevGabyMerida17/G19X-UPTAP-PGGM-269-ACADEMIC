@@ -9,14 +9,41 @@ from sqlalchemy.orm import Session
 
 from .. import cache, ia
 from ..db import get_db
-from ..models import Comentario, Usuario
+from ..models import Comentario, Modulo, ProgresoModulo, Usuario
 from ..seguridad import requiere_rol
-from ..servicios import estado_modulos, evaluaciones_de, ficha, progreso_para_tutor
+from ..servicios import estado_modulos, evaluaciones_de, ficha, intentos, progreso_para_tutor
 
 router = APIRouter(prefix="/api/supervisor", tags=["supervisor"])
 supervisor = requiere_rol("supervisor")
 
 TIPOS = ("comentario", "solicitud", "apoyo", "seguimiento")
+
+
+@router.post("/colaboradores/{uid}/modulos/{mid}/intento-extra")
+def conceder_intento(uid: int, mid: int, quien: Usuario = Depends(requiere_rol("supervisor", "rh")),
+                     db: Session = Depends(get_db)):
+    """El responsable (de sus colaboradores) o RH (de cualquiera) concede un intento más en una evaluación."""
+    u = db.get(Usuario, uid)
+    if not u or u.rol != "colaborador" or (quien.rol == "supervisor" and u.supervisor_id != quien.id):
+        raise HTTPException(404, "Ese colaborador no está asignado a ti.")
+    m = db.get(Modulo, mid)
+    if not m or not m.preguntas:
+        raise HTTPException(404, "Ese módulo no tiene evaluación.")
+    it = intentos(db, u, m)
+    if it["aprobada"]:
+        raise HTTPException(400, "Ya aprobó esta evaluación.")
+    if not it["agotados"]:
+        raise HTTPException(400, f"Todavía le quedan {it['restantes']} intento(s).")
+    p = db.scalar(select(ProgresoModulo).where(ProgresoModulo.usuario_id == u.id, ProgresoModulo.modulo_id == m.id))
+    if not p:
+        p = ProgresoModulo(usuario_id=u.id, modulo_id=m.id, secciones_leidas=len(m.secciones or []))
+        db.add(p)
+    p.intentos_extra = (p.intentos_extra or 0) + 1
+    db.add(Comentario(colaborador_id=u.id, autor_id=quien.id, tipo="seguimiento",
+                      texto=f"Te concedí un intento más en la evaluación de {m.titulo}. ¡Tú puedes!"))
+    db.commit()
+    cache.publicar("avance", id=u.id)
+    return intentos(db, u, m)
 
 
 def _de_mi_equipo(db: Session, sup: Usuario, uid: int) -> Usuario:

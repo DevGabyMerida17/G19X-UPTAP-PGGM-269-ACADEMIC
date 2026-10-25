@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Box, Check, Circle, Lock, Moon, Play, Sun } from "lucide-react";
+import { Box, Check, Circle, Lock, Moon, Play, Sun, UserRound } from "lucide-react";
 import { api, wsUrl } from "./api.js";
+import { nombreDePila } from "./validaciones.js";
 
 /* ---------- Tema claro / oscuro ---------- */
 // index.html ya puso data-tema antes de cargar; aquí solo se cambia y se recuerda.
@@ -109,6 +110,32 @@ export function MarcaEstado({ estado, bloqueado = "lock" }) {
   );
 }
 
+/** Muestra el texto de la IA con formato básico: **negritas**, viñetas (* o -), listas numeradas y ### títulos.
+    Arma elementos de React (no inserta HTML), así que es seguro aunque el texto venga del modelo. */
+function enLinea(texto) {
+  return texto.split(/(\*\*[^*]+\*\*)/g).map((parte, i) =>
+    parte.startsWith("**") && parte.endsWith("**") ? <b key={i}>{parte.slice(2, -2)}</b> : parte.replace(/(^|\s)\*(\S[^*]*?)\*(?=\s|$)/g, "$1$2"),
+  );
+}
+
+export function TextoIA({ texto = "" }) {
+  const bloques = [];
+  let lista = null;
+  texto.split("\n").forEach((linea, i) => {
+    const vineta = linea.match(/^\s*(?:[*\-•]|\d+[.)])\s+(.*)$/);
+    if (vineta) {
+      if (!lista) { lista = []; bloques.push(<ul key={`l${i}`} className="texto-ia-lista">{lista}</ul>); }
+      lista.push(<li key={i}>{enLinea(vineta[1])}</li>);
+      return;
+    }
+    lista = null;
+    const titulo = linea.match(/^\s*#{1,4}\s+(.*)$/);
+    if (titulo) bloques.push(<p key={i} className="texto-ia-titulo">{enLinea(titulo[1])}</p>);
+    else if (linea.trim()) bloques.push(<p key={i}>{enLinea(linea)}</p>);
+  });
+  return <div className="texto-ia">{bloques}</div>;
+}
+
 export const Cargando = () => <p className="cargando">Cargando…</p>;
 export const ErrorCaja = ({ mensaje, reintentar }) => (
   <div className="notice rose row between wrap">
@@ -123,7 +150,10 @@ export function Vista({ estado, children }) {
   return children(estado.datos);
 }
 
-export const iniciales = (n = "") => n.trim().split(/\s+/).map((x) => x[0]).join("").slice(0, 2).toUpperCase();
+// Si el nombre no es válido (p. ej. quedó registrado con números) se muestra un ícono de persona.
+export const iniciales = (n = "") => nombreDePila(n)
+  ? n.trim().split(/\s+/).map((x) => x[0]).join("").slice(0, 2).toUpperCase()
+  : <UserRound size={16} strokeWidth={1.8} aria-hidden="true" />;
 
 export function fecha(iso, opciones = { day: "numeric", month: "short" }) {
   if (!iso) return "";

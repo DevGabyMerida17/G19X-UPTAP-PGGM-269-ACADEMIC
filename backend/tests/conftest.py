@@ -20,6 +20,10 @@ os.environ.update({
     "AZURE_OPENAI_ENDPOINT": "",
     "AZURE_OPENAI_API_KEY": "",
     "AZURE_OPENAI_DEPLOYMENT": "",
+    # Las pruebas nunca usan un modelo real, aunque el .env tenga una clave configurada.
+    "IA_BASE_URL": "",
+    "IA_API_KEY": "",
+    "IA_MODELO": "",
 })
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

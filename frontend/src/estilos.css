@@ -309,3 +309,18 @@ select.sin-asignar{color:var(--rose-ink);border-color:var(--rose-borde)}
 .boton-copiar:hover{background:var(--lav);border-color:var(--lav-2)}
 .boton-copiar.ok{background:var(--mint);border-color:var(--mint-borde);color:var(--mint-ink)}
 .boton-copiar:focus-visible{outline:3px solid rgba(90,71,184,.25);outline-offset:2px}
+
+/* Tarjetas de los agentes de IA */
+.agente-card{border-color:var(--lav-borde)}
+.agente-ico{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--lav);color:var(--lav-ink);flex:none}
+.msg-agente{font-size:11.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--lav-ink);margin-bottom:4px}
+.recomendacion{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);flex-wrap:wrap}
+.retro-error{padding:12px 14px;border-radius:var(--r);background:var(--rose-suave);border:1px solid var(--rose-borde)}
+.retro-error .small{color:var(--ink-2)}
+.texto-ia{white-space:normal}
+.texto-ia p+p,.texto-ia p+ul,.texto-ia ul+p{margin-top:8px}
+.texto-ia-lista{margin:6px 0 0;padding-left:20px}
+.texto-ia-lista li+li{margin-top:4px}
+.texto-ia-titulo{font-weight:700}
+.nombre-editable{display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-width:360px}
+.nombre-editable input{flex:1;min-width:160px;padding:6px 10px}

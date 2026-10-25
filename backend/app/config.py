@@ -39,6 +39,9 @@ AZURE_OPENAI_API_VERSION = _env("AZURE_OPENAI_API_VERSION", "2024-10-21")
 IA_BASE_URL = _env("IA_BASE_URL")
 IA_API_KEY = _env("IA_API_KEY")
 IA_MODELO = _env("IA_MODELO")
+# Cuánto "piensa" el modelo antes de responder (low, medium, high). Vacío = lo que use el modelo por defecto.
+# Con Gemini, "low" responde unas 8 veces más rápido.
+IA_RAZONAMIENTO = _env("IA_RAZONAMIENTO")
 
 # Microsoft Entra ID (SSO)
 ENTRA_TENANT_ID = _env("ENTRA_TENANT_ID")

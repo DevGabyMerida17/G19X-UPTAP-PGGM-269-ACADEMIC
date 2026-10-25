@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { wsUrl } from "../../api.js";
-import { Vista, useApi } from "../../ui.jsx";
+import { TextoIA, Vista, useApi } from "../../ui.jsx";
 
 const SUGERENCIAS = ["¿Qué me toca hacer ahora?", "¿Cómo puedo ver mis avances?", "¿Qué es una API?", "¿Cómo pido vacaciones?"];
 
@@ -37,7 +37,7 @@ function Chat({ inicial, iaConfigurada, proveedor }) {
           setEscribiendo(false);
           setMensajes((prev) => [...prev, m.tipo === "error"
             ? { rol: "error", texto: m.mensaje, fuentes: [] }
-            : { rol: "tutor", texto: m.texto, fuentes: m.fuentes || [] }]);
+            : { rol: "tutor", texto: m.texto, fuentes: m.fuentes || [], agente: m.agente }]);
         }
       };
       s.onclose = (e) => {
@@ -74,7 +74,8 @@ function Chat({ inicial, iaConfigurada, proveedor }) {
         <div className="msgs" ref={caja} aria-live="polite">
           {mensajes.map((m, i) => (
             <div key={i} className={`msg ${m.rol === "usuario" ? "me" : m.rol === "error" ? "error" : "bot"}`}>
-              {m.texto}
+              {m.agente && <div className="msg-agente">{m.agente}</div>}
+              {m.rol === "tutor" ? <TextoIA texto={m.texto} /> : m.texto}
               {m.fuentes?.length > 0 && <div className="src">Fuente: {m.fuentes.join(" · ")}</div>}
             </div>
           ))}

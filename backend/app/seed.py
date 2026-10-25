@@ -2,7 +2,7 @@
 import re
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
 from sqlalchemy.orm import Session
 
 import logging
@@ -95,8 +95,27 @@ def secciones(contenido: str) -> list[dict]:
     return salida
 
 
+# Columnas agregadas después de la primera versión: (tabla, columna, tipo SQL con valor por defecto).
+COLUMNAS_NUEVAS = [
+    ("modulos", "intentos_maximos", "INTEGER NOT NULL DEFAULT 3"),
+    ("progreso_modulos", "intentos_extra", "INTEGER NOT NULL DEFAULT 0"),
+    ("evaluaciones", "retro_ia", "JSON"),
+]
+
+
+def _agregar_columnas_faltantes() -> None:
+    """Migración sencilla para bases ya existentes (create_all no agrega columnas a tablas creadas)."""
+    existentes = {t: {c["name"] for c in inspect(engine).get_columns(t)} for t, _, _ in COLUMNAS_NUEVAS}
+    with engine.begin() as con:
+        for tabla, columna, tipo in COLUMNAS_NUEVAS:
+            if columna not in existentes[tabla]:
+                con.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}"))
+                log.warning("Columna agregada: %s.%s", tabla, columna)
+
+
 def inicializar() -> None:
     Base.metadata.create_all(engine)
+    _agregar_columnas_faltantes()
     with Session(engine) as db:
         if not db.scalar(select(Programa).limit(1)):
             _cargar_catalogos(db)

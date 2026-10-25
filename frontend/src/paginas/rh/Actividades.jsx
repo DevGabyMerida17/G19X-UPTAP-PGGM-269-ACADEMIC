@@ -27,6 +27,12 @@ export default function Actividades() {
     await ejecutar(() => api(`/api/rh/modulos/${m.id}`, { metodo: "PATCH", datos: { puntuacion_minima: n } }), "Puntuación mínima actualizada");
     modulos.recargar(); preguntas.recargar();
   };
+  const intentosMax = async (m, valor) => {
+    const n = Number(valor);
+    if (!Number.isInteger(n) || n < 1 || n > 10 || n === m.intentos_maximos) return;
+    await ejecutar(() => api(`/api/rh/modulos/${m.id}`, { metodo: "PATCH", datos: { intentos_maximos: n } }), "Intentos actualizados");
+    modulos.recargar();
+  };
   const borrar = async (p) => { await ejecutar(() => api(`/api/rh/preguntas/${p.id}`, { metodo: "DELETE" }), "Pregunta eliminada"); preguntas.recargar(); modulos.recargar(); };
 
   return (
@@ -59,12 +65,16 @@ export default function Actividades() {
         {(ms) => {
           const conPreguntas = ms.filter((m) => m.preguntas > 0);
           return conPreguntas.length > 0 && (
-            <div className="card mt"><h3>Puntuación mínima por módulo</h3>
+            <div className="card mt"><h3>Reglas de cada evaluación</h3>
+              <p className="small muted mt-s">Si alguien agota sus intentos, su responsable o RH pueden concederle uno más.</p>
               <div className="list mt-s">{conPreguntas.map((m) => (
-                <div key={m.id}>
-                  <span style={{ flex: 1 }}>{m.titulo} <span className="small muted">· {m.preguntas} preguntas</span></span>
+                <div key={m.id} style={{ flexWrap: "wrap" }}>
+                  <span style={{ flex: 1, minWidth: 180 }}>{m.titulo} <span className="small muted">· {m.preguntas} preguntas</span></span>
                   <label className="row small">Mínimo
                     <input type="number" min={0} max={100} defaultValue={m.puntuacion_minima} style={{ width: 80 }} onBlur={(e) => minimo(m, e.target.value)} aria-label={`Puntuación mínima de ${m.titulo}`} />%
+                  </label>
+                  <label className="row small">Intentos
+                    <input type="number" min={1} max={10} defaultValue={m.intentos_maximos} style={{ width: 70 }} onBlur={(e) => intentosMax(m, e.target.value)} aria-label={`Intentos permitidos en ${m.titulo}`} />
                   </label>
                 </div>
               ))}</div>

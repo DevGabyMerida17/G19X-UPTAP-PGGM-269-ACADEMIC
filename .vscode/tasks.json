@@ -1,0 +1,91 @@
+{
+  // Tareas del proyecto. Ejecuta "Levantar proyecto" con Ctrl+Shift+B.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Levantar proyecto",
+      "detail": "Inicia el backend (FastAPI) y el frontend (React) al mismo tiempo",
+      "dependsOn": ["Backend (FastAPI)", "Frontend (React)"],
+      "dependsOrder": "parallel",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend (FastAPI)",
+      "detail": "API en http://localhost:8000 (se reinicia sola al guardar cambios)",
+      "type": "process",
+      "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+      "args": ["-m", "uvicorn", "app.main:app", "--reload", "--port", "8000"],
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "isBackground": true,
+      "presentation": { "group": "servidores", "panel": "dedicated", "reveal": "always" },
+      "problemMatcher": {
+        "owner": "uvicorn",
+        "pattern": { "regexp": "^__nunca__$" },
+        "background": {
+          "activesBegin": true,
+          "beginsPattern": "Will watch for changes|Started reloader",
+          "endsPattern": "Application startup complete"
+        }
+      }
+    },
+    {
+      "label": "Frontend (React)",
+      "detail": "Página en http://localhost:5173",
+      "type": "process",
+      "command": "npm.cmd",
+      "args": ["run", "dev"],
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "isBackground": true,
+      "presentation": { "group": "servidores", "panel": "dedicated", "reveal": "always" },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^__nunca__$" },
+        "background": {
+          "activesBegin": true,
+          "beginsPattern": "vite|VITE",
+          "endsPattern": "Local"
+        }
+      }
+    },
+    {
+      "label": "Pruebas del backend",
+      "type": "process",
+      "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+      "args": ["-m", "pytest", "-q"],
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Comprobar conexión con la IA",
+      "type": "process",
+      "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+      "args": ["-m", "app.probar_ia"],
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Instalar dependencias",
+      "detail": "Solo la primera vez o si cambian requirements.txt / package.json",
+      "dependsOn": ["Instalar dependencias del backend", "Instalar dependencias del frontend"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Instalar dependencias del backend",
+      "type": "shell",
+      "command": "if (!(Test-Path .venv)) { python -m venv .venv }; .venv\\Scripts\\python -m pip install -r requirements-dev.txt",
+      "options": { "cwd": "${workspaceFolder}/backend", "shell": { "executable": "powershell.exe", "args": ["-NoProfile", "-Command"] } },
+      "problemMatcher": []
+    },
+    {
+      "label": "Instalar dependencias del frontend",
+      "type": "process",
+      "command": "npm.cmd",
+      "args": ["install"],
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": []
+    }
+  ]
+}

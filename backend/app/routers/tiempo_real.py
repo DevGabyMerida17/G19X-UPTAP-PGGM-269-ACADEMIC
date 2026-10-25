@@ -6,7 +6,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
-from .. import cache, config, ia
+from .. import cache, config, ia, nombres_agentes
+from ..validaciones import nombre_de_pila
 from ..db import SessionLocal
 from ..models import ConsultaTutor, Usuario
 from ..seguridad import requiere_rol, usuario_de_token
@@ -15,8 +16,9 @@ from ..servicios import progreso_para_tutor
 router = APIRouter(tags=["tiempo real"])
 log = logging.getLogger("tutor")
 
-SALUDO = ("¡Hola, {nombre}! Soy tu Tutor de onboarding. Puedo resolver dudas sobre las políticas de PluriOne, "
-          "beneficios, horarios o decirte qué te toca hacer ahora.")
+SALUDO = ("{saludo} Aquí te atienden el " + nombres_agentes.TUTOR_ONBOARDING + ", que te guía en tu proceso, te "
+          "explica la plataforma y resuelve dudas sobre las políticas de PluriOne, y el "
+          + nombres_agentes.CONOCIMIENTO_GENERAL + ", que responde cualquier otra pregunta o definición.")
 
 
 def _autenticar(token: str | None, roles: tuple[str, ...]) -> Usuario | None:
@@ -29,7 +31,8 @@ def _autenticar(token: str | None, roles: tuple[str, ...]) -> Usuario | None:
 def historial(u: Usuario = Depends(requiere_rol("colaborador"))):
     mensajes = cache.historial_chat(u.id)
     if not mensajes:
-        mensajes = [{"rol": "tutor", "texto": SALUDO.format(nombre=u.nombre.split()[0]), "fuentes": []}]
+        pila = nombre_de_pila(u.nombre)
+        mensajes = [{"rol": "tutor", "texto": SALUDO.format(saludo=f"¡Hola, {pila}!" if pila else "¡Hola!"), "fuentes": []}]
     return {"ia_configurada": config.ia_configurada(), "proveedor": config.proveedor_ia(), "mensajes": mensajes}
 
 
@@ -39,7 +42,7 @@ async def _responder(u: Usuario, pregunta: str) -> dict:
     previos = cache.historial_chat(u.id)
     r = await ia.obtener_agente().ainvoke({
         "pregunta": pregunta,
-        "nombre": u.nombre.split()[0],
+        "nombre": nombre_de_pila(u.nombre),
         "historial": [{"rol": m["rol"], "texto": m["texto"]} for m in previos],
         "progreso": progreso,
     })
@@ -48,7 +51,7 @@ async def _responder(u: Usuario, pregunta: str) -> dict:
         db.commit()
     if r.get("tema"):
         cache.publicar("consulta", tema=r["tema"])
-    return {"rol": "tutor", "texto": r["respuesta"], "fuentes": r.get("fuentes", [])}
+    return {"rol": "tutor", "texto": r["respuesta"], "fuentes": r.get("fuentes", []), "agente": r.get("agente")}
 
 
 @router.websocket("/ws/tutor")

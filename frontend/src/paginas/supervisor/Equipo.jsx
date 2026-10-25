@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useApp } from "../../App.jsx";
 import { api } from "../../api.js";
 import { Barra, Chip, MarcaEstado, Vista, fecha, iniciales, tonoBarra, useAccion, useApi, useEventos } from "../../ui.jsx";
 
@@ -56,7 +57,14 @@ const TIPOS = { comentario: "Comentario", solicitud: "Solicitud", apoyo: "Apoyo"
 function Detalle({ id, volver }) {
   const detalle = useApi(`/api/supervisor/colaboradores/${id}`);
   const recomendacion = useApi(`/api/supervisor/colaboradores/${id}/recomendacion`);
+  const { config } = useApp();
   const [ejecutar, ocupado] = useAccion();
+
+  const darIntento = async (e) => {
+    const ok = await ejecutar(() => api(`/api/supervisor/colaboradores/${id}/modulos/${e.modulo_id}/intento-extra`, { metodo: "POST" }),
+      `Se le concedió un intento más en ${e.modulo}`);
+    if (ok) detalle.recargar();
+  };
 
   const comentar = async (tipo, texto) => {
     if (await ejecutar(() => api(`/api/supervisor/colaboradores/${id}/comentarios`, { metodo: "POST", datos: { tipo, texto } }), "Registrado; el colaborador lo verá en su inicio")) {
@@ -78,8 +86,8 @@ function Detalle({ id, volver }) {
             </div>
 
             <div className="notice peach">
-              <b>Recomendación de la IA</b>
-              <p className="mt-s">{recomendacion.cargando ? "Generando recomendación…" : recomendacion.error ? recomendacion.error : recomendacion.datos?.recomendacion}</p>
+              <b>{config.agentes?.recomendador || "Agente Recomendador"}</b>
+              <p className="mt-s">{recomendacion.cargando ? "Analizando su avance…" : recomendacion.error ? recomendacion.error : recomendacion.datos?.recomendacion}</p>
             </div>
 
             <div className="grid g2 mt">
@@ -97,8 +105,19 @@ function Detalle({ id, volver }) {
               <div className="card">
                 <h3>Evaluaciones</h3>
                 {c.evaluaciones.length === 0 ? <p className="muted small mt-s">Aún no presenta evaluaciones.</p> : (
-                  <table className="mt-s"><thead><tr><th>Evaluación</th><th>Resultado</th></tr></thead>
-                    <tbody>{c.evaluaciones.map((e) => <tr key={e.modulo_id}><td>{e.modulo}</td><td><Chip estado={e.aprobada ? "validado" : "rechazado"}>{e.calificacion}%</Chip></td></tr>)}</tbody>
+                  <table className="mt-s"><thead><tr><th>Evaluación</th><th>Resultado</th><th>Intentos</th></tr></thead>
+                    <tbody>{c.evaluaciones.map((e) => (
+                      <tr key={e.modulo_id}>
+                        <td>{e.modulo}</td>
+                        <td><Chip estado={e.aprobada ? "validado" : "rechazado"}>{e.calificacion}%</Chip></td>
+                        <td>
+                          <span className="small">{e.intentos_usados} de {e.intentos_permitidos}</span>
+                          {e.intentos_agotados && (
+                            <div className="mt-s"><button className="btn ghost sm" disabled={ocupado} onClick={() => darIntento(e)}>Dar un intento más</button></div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}</tbody>
                   </table>
                 )}
                 <h3 className="mt-l">Acciones</h3>

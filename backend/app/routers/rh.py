@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .. import cache, config, correo, rag
+from .. import asistente_rh, cache, config, correo, ia, rag
 from ..db import get_db
 from ..models import (
     AREAS, ConsultaTutor, DocumentoColaborador, DocumentoConocimiento, Modulo, Pregunta, Programa, ProgresoModulo,
@@ -92,6 +92,12 @@ class CambioUsuario(BaseModel):
     puesto: str | None = None
     area: str | None = None
     supervisor_id: int | None = None  # enviar null explícitamente para quitar al responsable
+    nombre: str | None = Field(default=None, max_length=120)
+
+    @field_validator("nombre")
+    @classmethod
+    def nombre_valido(cls, v: str | None) -> str | None:
+        return validar_nombre(v) if v is not None else None
 
 
 def _validar_supervisor(db: Session, sid: int | None) -> None:
@@ -233,6 +239,7 @@ class CambioModulo(BaseModel):
     activo: bool | None = None
     titulo: str | None = None
     puntuacion_minima: int | None = Field(default=None, ge=0, le=100)
+    intentos_maximos: int | None = Field(default=None, ge=1, le=10)
     programa_id: int | None = None
 
 
@@ -249,7 +256,8 @@ def _secciones(contenido: str) -> list[dict]:
 def _modulo_json(db: Session, m: Modulo) -> dict:
     return {"id": m.id, "titulo": m.titulo, "programa_id": m.programa_id, "programa": m.programa.titulo,
             "minutos": m.minutos, "orden": m.orden, "activo": m.activo, "secciones": len(m.secciones),
-            "preguntas": len(m.preguntas), "puntuacion_minima": m.puntuacion_minima}
+            "preguntas": len(m.preguntas), "puntuacion_minima": m.puntuacion_minima,
+            "intentos_maximos": m.intentos_maximos or 3}
 
 
 @router.get("/programas")
@@ -360,6 +368,30 @@ def validar_documento(did: int, db: Session = Depends(get_db)):
 @router.post("/documentos/{did}/rechazar")
 def rechazar_documento(did: int, datos: Rechazo, db: Session = Depends(get_db)):
     return _revisar(db, did, "rechazado", datos.nota.strip())
+
+
+# ---------- Asistente de RH (agente de IA con los datos de la plataforma) ----------
+class MensajeAsistente(BaseModel):
+    rol: str
+    texto: str
+
+
+class PreguntaAsistente(BaseModel):
+    pregunta: str = Field(min_length=2, max_length=1000)
+    historial: list[MensajeAsistente] = []
+
+
+@router.post("/asistente")
+def asistente(datos: PreguntaAsistente, yo: Usuario = Depends(requiere_rol("rh")), db: Session = Depends(get_db)):
+    if cache.limite_excedido(f"asistente_rh:{yo.id}", 15):
+        raise HTTPException(429, "Hiciste muchas preguntas seguidas. Espera un minuto.")
+    llm = ia.obtener_llm()  # 503 si la IA no está configurada
+    try:
+        respuesta = asistente_rh.responder(llm, datos.pregunta.strip(), [m.model_dump() for m in datos.historial],
+                                           asistente_rh.datos_plataforma(db), yo.nombre)
+    except Exception as e:
+        raise HTTPException(502, f"El Asistente de RH no respondió ({type(e).__name__}). Intenta de nuevo.") from e
+    return {"agente": asistente_rh.AGENTE_RH, "respuesta": respuesta}
 
 
 # ---------- Base de conocimiento del Tutor IA ----------

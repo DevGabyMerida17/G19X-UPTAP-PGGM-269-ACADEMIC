@@ -56,3 +56,22 @@ def validar_nombre(v: str) -> str:
         return p[:1].upper() + resto
 
     return " ".join(formato(i, p) for i, p in enumerate(palabras))
+
+
+def nombre_de_pila(nombre: str | None) -> str | None:
+    """Primer nombre para dirigirse a la persona, solo si el nombre guardado es un nombre real.
+
+    Si alguien quedó registrado con números u otro identificador (por ejemplo "23344"), devuelve None
+    para que los agentes y los correos no se dirijan a la persona por un número.
+    """
+    try:
+        return validar_nombre((nombre or "").strip()).split(" ")[0]
+    except ValueError:
+        return None
+
+
+def nombre_para_mostrar(nombre: str | None, correo: str = "") -> str:
+    """Nombre completo si es un nombre real; si no, una etiqueta clara en lugar de un número."""
+    if nombre_de_pila(nombre):
+        return nombre.strip()
+    return f"Sin nombre registrado ({correo})" if correo else "Sin nombre registrado"

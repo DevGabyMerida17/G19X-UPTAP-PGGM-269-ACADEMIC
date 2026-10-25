@@ -1,6 +1,5 @@
 """Conexión con el modelo de lenguaje: Azure OpenAI Service (principal) o un servicio compatible con OpenAI."""
 from fastapi import HTTPException
-from langchain_core.messages import HumanMessage, SystemMessage
 
 from . import config, rag
 from .agente import crear_agente
@@ -33,6 +32,7 @@ def obtener_llm():
                 base_url=config.IA_BASE_URL,
                 api_key=config.IA_API_KEY or "sin-clave",  # Ollama local no necesita clave
                 model=config.IA_MODELO,
+                **({"reasoning_effort": config.IA_RAZONAMIENTO} if config.IA_RAZONAMIENTO else {}),
                 temperature=0.3,
                 timeout=120,
                 max_retries=2,
@@ -48,19 +48,7 @@ def obtener_agente():
 
 
 async def recomendar_seguimiento(ficha: dict, progreso: dict) -> str:
-    """Recomendación para el supervisor sobre cómo apoyar a un colaborador."""
-    from .agente import _resumen_progreso
+    """Recomendación para el supervisor (Agente Recomendador)."""
+    from .recomendador import recomendar_seguimiento as _recomendar
 
-    sistema = (
-        "Eres un asistente de Recursos Humanos de PluriOne. Con base en el avance de onboarding "
-        "de un colaborador, escribe UNA recomendación concreta para su supervisor (máximo 2 oraciones). "
-        "Si alguna evaluación está por debajo del mínimo, menciona el módulo y la calificación. "
-        "Si va retrasado, sugiere una acción. Si va bien, sugiere reconocer su avance. No inventes datos."
-    )
-    datos = (
-        f"Colaborador: {ficha['nombre']} ({ficha['puesto']}, {ficha['area']})\n"
-        f"Ingreso: {ficha['fecha_ingreso']} · Estado: {ficha['estado']}\n"
-        f"{_resumen_progreso(progreso)}"
-    )
-    r = await obtener_llm().ainvoke([SystemMessage(content=sistema), HumanMessage(content=datos)])
-    return r.content.strip()
+    return await _recomendar(obtener_llm(), ficha, progreso)

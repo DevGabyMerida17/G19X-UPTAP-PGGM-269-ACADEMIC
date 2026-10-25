@@ -61,14 +61,30 @@ def documentos_de(db: Session, u: Usuario) -> list[dict]:
     return salida
 
 
+def intentos(db: Session, u: Usuario, m: Modulo) -> dict:
+    """Intentos de evaluación: usados, permitidos (los del módulo + extras concedidos) y si ya aprobó."""
+    evals = list(db.scalars(select(Evaluacion).where(Evaluacion.usuario_id == u.id, Evaluacion.modulo_id == m.id)))
+    p = db.scalar(select(ProgresoModulo).where(ProgresoModulo.usuario_id == u.id, ProgresoModulo.modulo_id == m.id))
+    permitidos = (m.intentos_maximos or 3) + (p.intentos_extra if p and p.intentos_extra else 0)
+    aprobada = any(e.aprobada for e in evals)
+    return {"usados": len(evals), "permitidos": permitidos, "restantes": max(0, permitidos - len(evals)),
+            "aprobada": aprobada, "agotados": not aprobada and len(evals) >= permitidos}
+
+
 def evaluaciones_de(db: Session, u: Usuario) -> list[dict]:
-    """La mejor calificación de cada módulo."""
+    """La mejor calificación de cada módulo, con sus intentos."""
     mejores: dict[int, Evaluacion] = {}
     for e in db.scalars(select(Evaluacion).where(Evaluacion.usuario_id == u.id)):
         if e.modulo_id not in mejores or e.calificacion > mejores[e.modulo_id].calificacion:
             mejores[e.modulo_id] = e
-    return [{"modulo_id": e.modulo_id, "modulo": e.modulo.titulo, "calificacion": e.calificacion,
-             "minimo": e.modulo.puntuacion_minima, "aprobada": e.aprobada} for e in mejores.values()]
+    salida = []
+    for e in mejores.values():
+        it = intentos(db, u, e.modulo)
+        salida.append({"modulo_id": e.modulo_id, "modulo": e.modulo.titulo, "calificacion": e.calificacion,
+                       "minimo": e.modulo.puntuacion_minima, "aprobada": e.aprobada,
+                       "intentos_usados": it["usados"], "intentos_permitidos": it["permitidos"],
+                       "intentos_agotados": it["agotados"]})
+    return salida
 
 
 def avance(db: Session, u: Usuario) -> int:

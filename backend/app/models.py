@@ -60,6 +60,8 @@ class Modulo(Base):
     # Lista de {"titulo": str, "contenido": str}
     secciones: Mapped[list] = mapped_column(JSON, default=list)
     puntuacion_minima: Mapped[int] = mapped_column(Integer, default=70)
+    # Cuántas veces se puede presentar la evaluación (RH lo cambia por módulo).
+    intentos_maximos: Mapped[int] = mapped_column(Integer, default=3)
     programa: Mapped[Programa] = relationship(back_populates="modulos")
     preguntas: Mapped[list["Pregunta"]] = relationship(back_populates="modulo", order_by="Pregunta.id")
 
@@ -84,6 +86,8 @@ class ProgresoModulo(Base):
     secciones_leidas: Mapped[int] = mapped_column(Integer, default=0)
     completado: Mapped[bool] = mapped_column(Boolean, default=False)
     completado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Intentos adicionales que el responsable o RH le concedió en la evaluación de este módulo.
+    intentos_extra: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class Evaluacion(Base):
@@ -95,6 +99,8 @@ class Evaluacion(Base):
     aprobada: Mapped[bool] = mapped_column(Boolean)
     respuestas: Mapped[list] = mapped_column(JSON)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+    # Retroalimentación del Agente Evaluador (se genera una vez y se guarda).
+    retro_ia: Mapped[dict | None] = mapped_column(JSON)
     modulo: Mapped[Modulo] = relationship()
 
 

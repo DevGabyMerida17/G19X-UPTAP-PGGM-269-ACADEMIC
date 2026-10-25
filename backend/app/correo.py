@@ -7,6 +7,7 @@ import uuid
 from email.message import EmailMessage
 
 from . import config
+from .validaciones import nombre_de_pila
 
 log = logging.getLogger("correo")
 
@@ -67,15 +68,21 @@ def enviar_seguro(*args) -> bool:
         return False
 
 
+def _saludo(nombre: str) -> str:
+    """'Hola, Ana.' o solo 'Hola.' si el nombre registrado no es un nombre real (por ejemplo un número)."""
+    pila = nombre_de_pila(nombre)
+    return f"Hola, {pila}." if pila else "Hola."
+
+
 def invitacion(nombre: str, correo: str, token: str) -> bool:
     enlace = f"{config.APP_URL}/?activar={token}"
-    nombre_corto = nombre.split()[0]
+    saludo = _saludo(nombre)
     return enviar_seguro(
         correo,
         "Bienvenido a PluriOne: activa tu cuenta",
-        f"Hola, {nombre_corto}.\n\nRecursos Humanos creó tu cuenta en la plataforma de onboarding de PluriOne. "
+        f"{saludo}\n\nRecursos Humanos creó tu cuenta en la plataforma de onboarding de PluriOne. "
         f"Para entrar, crea tu contraseña en este enlace (vence en {config.HORAS_ENLACE_ACTIVACION} horas):\n\n{enlace}\n",
-        _plantilla("Activa tu cuenta", f"Hola, {nombre_corto}.",
+        _plantilla("Activa tu cuenta", saludo,
                    "Recursos Humanos creó tu cuenta en la plataforma de onboarding de PluriOne. "
                    "Para entrar, crea tu contraseña.",
                    "Crear mi contraseña", enlace,
@@ -85,14 +92,14 @@ def invitacion(nombre: str, correo: str, token: str) -> bool:
 
 def restablecer(nombre: str, correo: str, token: str) -> bool:
     enlace = f"{config.APP_URL}/?restablecer={token}"
-    nombre_corto = nombre.split()[0]
+    saludo = _saludo(nombre)
     return enviar_seguro(
         correo,
         "Restablece tu contraseña de PluriOne",
-        f"Hola, {nombre_corto}.\n\nRecibimos una solicitud para cambiar tu contraseña. Usa este enlace "
+        f"{saludo}\n\nRecibimos una solicitud para cambiar tu contraseña. Usa este enlace "
         f"(vence en {config.MINUTOS_ENLACE_RESTABLECER} minutos):\n\n{enlace}\n\n"
         "Si no fuiste tú, ignora este correo; tu contraseña no cambiará.\n",
-        _plantilla("Restablece tu contraseña", f"Hola, {nombre_corto}.",
+        _plantilla("Restablece tu contraseña", saludo,
                    "Recibimos una solicitud para cambiar la contraseña de tu cuenta.",
                    "Cambiar contraseña", enlace,
                    f"El enlace vence en {config.MINUTOS_ENLACE_RESTABLECER} minutos. "
@@ -103,7 +110,7 @@ def restablecer(nombre: str, correo: str, token: str) -> bool:
 def bienvenida(nombre: str, correo: str, password_temporal: str, nueva_cuenta: bool = True) -> bool:
     """Datos de acceso que RH genera al dar de alta (o al crear una nueva contraseña temporal)."""
     enlace = config.APP_URL
-    nombre_corto = nombre.split()[0]
+    saludo = _saludo(nombre)
     titulo = "Bienvenido a PluriOne" if nueva_cuenta else "Tu nueva contraseña temporal"
     intro = ("Recursos Humanos creó tu cuenta en la plataforma de bienvenida de PluriOne. "
              "Estos son tus datos para entrar:") if nueva_cuenta else (
@@ -119,7 +126,7 @@ def bienvenida(nombre: str, correo: str, password_temporal: str, nueva_cuenta: b
     return enviar_seguro(
         correo,
         "Bienvenido a PluriOne: tus datos de acceso" if nueva_cuenta else "PluriOne: tu nueva contraseña temporal",
-        f"Hola, {nombre_corto}.\n\n{intro}\n\nUsuario (correo): {correo}\nContraseña temporal: {password_temporal}\n\n"
+        f"{saludo}\n\n{intro}\n\nUsuario (correo): {correo}\nContraseña temporal: {password_temporal}\n\n"
         f"Entra en: {enlace}\n\n{nota}\n",
-        _plantilla(titulo, f"Hola, {html.escape(nombre_corto)}.", intro, "Entrar a la plataforma", enlace, nota, bloque),
+        _plantilla(titulo, html.escape(saludo), intro, "Entrar a la plataforma", enlace, nota, bloque),
     )

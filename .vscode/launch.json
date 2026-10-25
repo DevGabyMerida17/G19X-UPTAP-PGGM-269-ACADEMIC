@@ -1,0 +1,33 @@
+{
+  // Opciones de "Ejecutar y depurar" (F5).
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend (depurar con puntos de interrupción)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--port", "8000"],
+      "cwd": "${workspaceFolder}/backend",
+      "python": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+      "envFile": "${workspaceFolder}/backend/.env",
+      "jinja": false,
+      "justMyCode": true
+    },
+    {
+      "name": "Abrir la página en el navegador",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/frontend/src"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Proyecto completo (depurar backend + abrir página)",
+      "configurations": ["Backend (depurar con puntos de interrupción)", "Abrir la página en el navegador"],
+      "preLaunchTask": "Frontend (React)",
+      "stopAll": true
+    }
+  ]
+}

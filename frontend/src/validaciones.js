@@ -111,3 +111,13 @@ export const propsNombre = {
     }
   },
 };
+
+/** Primer nombre solo si es un nombre real; si quedó registrado con números, devuelve "". */
+export function nombreDePila(nombre = "") {
+  return errorNombre(nombre.trim()) ? "" : nombre.trim().split(" ")[0];
+}
+
+/** Nombre para mostrar: el nombre real o "Sin nombre registrado" (nunca un número). */
+export function nombreVisible(nombre = "") {
+  return errorNombre(nombre.trim()) ? "Sin nombre registrado" : nombre.trim();
+}
