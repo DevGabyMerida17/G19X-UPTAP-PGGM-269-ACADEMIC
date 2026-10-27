@@ -6,14 +6,14 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import asistente_rh, cache, config, correo, ia, permisos, rag
 from ..db import get_db
 from ..models import (
-    AREAS, ConsultaTutor, DocumentoColaborador, DocumentoConocimiento, Modulo, Pregunta, Programa, ProgresoModulo,
-    Rol, Usuario,
+    AREAS, Comentario, ConsultaTutor, DocumentoColaborador, DocumentoConocimiento, Evaluacion, Modulo, Pregunta,
+    Programa, ProgresoModulo, Rol, TareaColaborador, Usuario,
 )
 from ..seguridad import (
     cerrar_todas_las_sesiones, hash_password, password_temporal, requiere_permiso, usuario_actual,
@@ -229,6 +229,32 @@ def nueva_password_temporal(uid: int, tareas: BackgroundTasks, yo: Usuario = Dep
     tareas.add_task(correo.bienvenida, u.nombre, u.correo, temporal, False)
     return {"password_temporal": temporal, "correo_configurado": bool(config.SMTP_HOST)}
 
+
+
+@router.delete("/usuarios/{uid}", dependencies=[Depends(requiere_permiso(permisos.PERSONAL_GESTIONAR))])
+def eliminar_usuario(uid: int, yo: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
+    """Borra a la persona y todo su registro (avance, evaluaciones, documentos, comentarios y consultas).
+    No se puede deshacer; para conservar el historial está "Dar de baja"."""
+    u = db.get(Usuario, uid)
+    if not u:
+        raise HTTPException(404, "Usuario no encontrado.")
+    if u.id == yo.id:
+        raise HTTPException(400, "No puedes eliminar tu propia cuenta.")
+    archivos = [Path(d.archivo_ruta) for d in db.scalars(select(DocumentoColaborador).where(DocumentoColaborador.usuario_id == uid))
+                if d.archivo_ruta]
+    for c in db.scalars(select(Usuario).where(Usuario.supervisor_id == uid)):  # sus colaboradores quedan sin responsable
+        c.supervisor_id = None
+    for tabla in (ProgresoModulo, Evaluacion, TareaColaborador, DocumentoColaborador, ConsultaTutor):
+        db.execute(delete(tabla).where(tabla.usuario_id == uid))
+    db.execute(delete(Comentario).where(or_(Comentario.colaborador_id == uid, Comentario.autor_id == uid)))
+    db.delete(u)
+    db.commit()
+    for a in archivos:
+        a.unlink(missing_ok=True)
+    cerrar_todas_las_sesiones(uid)
+    cache.r().delete(f"chat:{uid}")
+    cache.publicar("colaborador", id=uid)
+    return {"ok": True}
 
 # ---------- Programas y módulos ----------
 class NuevoPrograma(BaseModel):

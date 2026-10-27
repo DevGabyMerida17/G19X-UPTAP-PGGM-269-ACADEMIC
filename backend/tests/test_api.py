@@ -92,6 +92,32 @@ def test_rh_no_se_da_de_baja_a_si_mismo(client, admin):
     assert client.patch(f"/api/rh/usuarios/{yo['id']}", headers=admin, json={"activo": False}).status_code == 400
 
 
+
+def test_rh_elimina_a_una_persona(client, admin, crear):
+    sup_h, sid = crear(rol="supervisor")
+    h, uid = crear(supervisor_id=sid)
+    correo = client.get("/api/auth/yo", headers=h).json()["correo"]
+    tipo = client.get("/api/yo/resumen", headers=h).json()["documentos"][0]["tipo_id"]
+    client.post(f"/api/yo/documentos/{tipo}", headers=h, files={"archivo": ("ine.pdf", b"%PDF-1.4 prueba")})
+    assert client.post(f"/api/supervisor/colaboradores/{uid}/comentarios", headers=sup_h,
+                       json={"texto": "Buen avance"}).status_code == 200
+
+    assert client.delete(f"/api/rh/usuarios/{uid}", headers=h).status_code == 403  # solo RH
+    assert client.delete(f"/api/rh/usuarios/{uid}", headers=admin).status_code == 200
+    assert uid not in [c["id"] for c in client.get("/api/rh/colaboradores", headers=admin).json()]
+    assert client.get("/api/yo/resumen", headers=h).status_code == 401  # se le cierra la sesión
+    assert client.post("/api/auth/login", json={"correo": correo, "password": PASSWORD}).status_code == 401
+    assert client.delete(f"/api/rh/usuarios/{uid}", headers=admin).status_code == 404
+
+    # Al eliminar a un responsable, sus colaboradores quedan sin asignar
+    _, otro = crear(supervisor_id=sid)
+    assert client.delete(f"/api/rh/usuarios/{sid}", headers=admin).status_code == 200
+    fila = next(c for c in client.get("/api/rh/colaboradores", headers=admin).json() if c["id"] == otro)
+    assert fila["supervisor_id"] is None
+
+    yo = client.get("/api/auth/yo", headers=admin).json()
+    assert client.delete(f"/api/rh/usuarios/{yo['id']}", headers=admin).status_code == 400
+
 def test_permisos_por_rol(client, crear):
     h, _ = crear()
     assert client.get("/api/rh/panel", headers=h).status_code == 403

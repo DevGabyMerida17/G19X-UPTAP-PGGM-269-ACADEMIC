@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, Copy, Pencil } from "lucide-react";
+import { Check, Copy, Pencil, Trash2 } from "lucide-react";
 import { useApp } from "../../App.jsx";
 import { api } from "../../api.js";
 import { errorCorreo, errorNombre, propsCorreo, propsNombre } from "../../validaciones.js";
@@ -20,6 +20,7 @@ export default function Colaboradores() {
   const [formulario, setFormulario] = useState(false);
   const [confirmarBaja, setConfirmarBaja] = useState(null);
   const [confirmarTemporal, setConfirmarTemporal] = useState(null);
+  const [confirmarEliminar, setConfirmarEliminar] = useState(null);
   const [credencial, setCredencial] = useState(null); // contraseña temporal recién generada, para que RH la copie
   const [ejecutar, ocupado] = useAccion();
 
@@ -41,6 +42,14 @@ export default function Colaboradores() {
     }
   };
   const baja = async (u) => { if (await cambiar(u, { activo: false }, `${u.nombre} fue dado de baja`)) setConfirmarBaja(null); };
+  const eliminar = async (u) => {
+    if (await ejecutar(() => api(`/api/rh/usuarios/${u.id}`, { metodo: "DELETE" }), `${u.nombre} fue eliminado`)) {
+      setConfirmarEliminar(null);
+      recargar();
+    }
+  };
+  const elegir = (accion, id) => { setConfirmarBaja(accion === "baja" ? id : null); setConfirmarTemporal(accion === "temporal" ? id : null);
+    setConfirmarEliminar(accion === "eliminar" ? id : null); };
 
   const coincide = (u) => {
     const q = sinAcentos(busca.trim());
@@ -55,21 +64,34 @@ export default function Colaboradores() {
     </>
   );
 
-  const AccionesUsuario = ({ u }) => (
-    <div className="row nowrap" style={{ gap: 6, justifyContent: "flex-end" }}>
-      {u.activo && u.id !== usuario.id && confirmarBaja !== u.id && (confirmarTemporal === u.id
-        ? <><button className="btn sm" disabled={ocupado} onClick={() => nuevaTemporal(u)}>Generar</button>
-            <button className="btn ghost sm" onClick={() => setConfirmarTemporal(null)}>Cancelar</button></>
-        : <button className="btn ghost sm" title="Genera una contraseña temporal nueva; la actual deja de funcionar"
-            onClick={() => { setConfirmarBaja(null); setConfirmarTemporal(u.id); }}>Contraseña temporal</button>)}
-      {confirmarTemporal === u.id ? null : u.activo
-        ? (confirmarBaja === u.id
-          ? <><button className="btn rose sm" disabled={ocupado} onClick={() => baja(u)}>Confirmar baja</button>
-              <button className="btn ghost sm" onClick={() => setConfirmarBaja(null)}>Cancelar</button></>
-          : u.id !== usuario.id && <button className="btn ghost sm" onClick={() => { setConfirmarTemporal(null); setConfirmarBaja(u.id); }}>Dar de baja</button>)
-        : <button className="btn mint sm" disabled={ocupado} onClick={() => cambiar(u, { activo: true }, `${u.nombre} fue reactivado`)}>Reactivar</button>}
-    </div>
-  );
+  const AccionesUsuario = ({ u }) => {
+    if (u.id === usuario.id) return null;
+    if (confirmarEliminar === u.id) return (
+      <div className="row nowrap" style={{ gap: 6, justifyContent: "flex-end" }}>
+        <span className="small muted">¿Eliminar? Se borra todo su registro.</span>
+        <button className="btn rose sm" disabled={ocupado} onClick={() => eliminar(u)}>Eliminar</button>
+        <button className="btn ghost sm" onClick={() => elegir(null)}>Cancelar</button>
+      </div>
+    );
+    return (
+      <div className="row nowrap" style={{ gap: 6, justifyContent: "flex-end" }}>
+        {u.activo && confirmarBaja !== u.id && (confirmarTemporal === u.id
+          ? <><button className="btn sm" disabled={ocupado} onClick={() => nuevaTemporal(u)}>Generar</button>
+              <button className="btn ghost sm" onClick={() => elegir(null)}>Cancelar</button></>
+          : <button className="btn ghost sm" title="Genera una contraseña temporal nueva; la actual deja de funcionar"
+              onClick={() => elegir("temporal", u.id)}>Contraseña temporal</button>)}
+        {confirmarTemporal === u.id ? null : u.activo
+          ? (confirmarBaja === u.id
+            ? <><button className="btn rose sm" disabled={ocupado} onClick={() => baja(u)}>Confirmar baja</button>
+                <button className="btn ghost sm" onClick={() => elegir(null)}>Cancelar</button></>
+            : <button className="btn ghost sm" onClick={() => elegir("baja", u.id)}>Dar de baja</button>)
+          : <button className="btn mint sm" disabled={ocupado} onClick={() => cambiar(u, { activo: true }, `${u.nombre} fue reactivado`)}>Reactivar</button>}
+        {confirmarTemporal !== u.id && confirmarBaja !== u.id && (
+          <button className="btn ghost sm" title={`Eliminar a ${u.nombre}`} aria-label={`Eliminar a ${u.nombre}`}
+            onClick={() => elegir("eliminar", u.id)}><Trash2 size={15} /></button>)}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -166,7 +188,7 @@ export default function Colaboradores() {
           }}
         </Vista>
       )}
-      <p className="small muted mt">Al dar de baja a una persona, ya no podrá entrar: verá un aviso de que su cuenta está inactiva. Si era responsable, sus colaboradores quedan sin asignar.</p>
+      <p className="small muted mt">Al dar de baja a una persona, ya no podrá entrar: verá un aviso de que su cuenta está inactiva. Si era responsable, sus colaboradores quedan sin asignar. El bote de basura elimina a la persona y todo su registro (avance, documentos y comentarios); no se puede deshacer.</p>
     </>
   );
 }
