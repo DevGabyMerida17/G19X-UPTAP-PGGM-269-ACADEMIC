@@ -22,7 +22,8 @@ El MVP es la versión mínima que cubre el ciclo completo de incorporación: **R
 | Bajas y reactivación; aviso de cuenta dada de baja | `PATCH /api/rh/usuarios/{uid}`; `error_cuenta_inactiva` en `seguridad.py` | `Colaboradores.jsx` |
 | Nueva contraseña temporal y corrección de nombre | `POST /api/rh/usuarios/{uid}/password-temporal`, `PATCH /api/rh/usuarios/{uid}` | `Colaboradores.jsx` |
 | Validación de correo y nombre | `backend/app/validaciones.py` | `frontend/src/validaciones.js` |
-| Sesiones, roles y límite de intentos | `backend/app/seguridad.py`, `backend/app/cache.py` (Redis) | `frontend/src/api.js` |
+| Sesiones y límite de intentos | `backend/app/seguridad.py`, `backend/app/cache.py` (Redis) | `frontend/src/api.js` |
+| Roles y permisos como datos (tablas `roles`, `permisos`, `rol_permisos`) | `requiere_permiso` en `seguridad.py`, catálogo en `backend/app/permisos.py`, datos iniciales en la migración `0003`; `GET /api/rh/roles` | — |
 
 ### 1.2 Ruta del colaborador
 
@@ -79,7 +80,7 @@ Conexión con el modelo (Azure OpenAI o Gemini): `backend/app/ia.py`. Nombres de
 | Función | Dónde |
 |---|---|
 | Avisos en tiempo real (WebSocket `/ws/eventos` con pub/sub de Redis) | `backend/app/routers/tiempo_real.py`, `backend/app/cache.py`; `useEventos` en `frontend/src/ui.jsx` |
-| Modelo de datos (13 tablas), migraciones y datos iniciales | `backend/app/models.py`, `backend/migraciones/versions/` (Alembic), `backend/app/seed.py` |
+| Modelo de datos (16 tablas), migraciones y datos iniciales | `backend/app/models.py`, `backend/migraciones/versions/` (Alembic), `backend/app/seed.py` |
 | Modo claro y oscuro, interfaz por rol | `frontend/src/estilos.css`, `frontend/src/App.jsx` |
 | Pruebas automáticas (sin gastar IA: modelo falso) | `backend/tests/` |
 | Contenedores | `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` |
@@ -96,7 +97,7 @@ Conexión con el modelo (Azure OpenAI o Gemini): `backend/app/ia.py`. Nombres de
 | Botón para conceder intentos desde la interfaz de RH | Hoy lo hace el responsable; RH ya puede vía API |
 | Historial de versiones de documentos | En el MVP, volver a subir reemplaza el archivo anterior |
 | Material multiarchivo en módulos (diapositivas, PDF, imágenes) | El MVP usa contenido por secciones |
-| Catálogo de roles y permisos configurable y bitácora de auditoría | Tres roles fijos cubren la operación inicial |
+| Pantalla para editar roles y permisos, y bitácora de auditoría | Los permisos ya son datos; editarlos desde la interfaz no es necesario para la operación inicial |
 | Alertas con severidad y notificaciones persistidas | El MVP avisa en tiempo real y en el panel |
 | Sincronización con el sistema de RH (HRIS) | No hay API confirmada; el alta es manual |
 

@@ -9,17 +9,19 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .. import asistente_rh, cache, config, correo, ia, rag
+from .. import asistente_rh, cache, config, correo, ia, permisos, rag
 from ..db import get_db
 from ..models import (
     AREAS, ConsultaTutor, DocumentoColaborador, DocumentoConocimiento, Modulo, Pregunta, Programa, ProgresoModulo,
-    Usuario,
+    Rol, Usuario,
 )
-from ..seguridad import cerrar_todas_las_sesiones, hash_password, password_temporal, requiere_rol
+from ..seguridad import (
+    cerrar_todas_las_sesiones, hash_password, password_temporal, requiere_permiso, usuario_actual,
+)
 from ..servicios import ficha
 from ..validaciones import validar_correo, validar_nombre
 
-router = APIRouter(prefix="/api/rh", tags=["rh"], dependencies=[Depends(requiere_rol("rh"))])
+router = APIRouter(prefix="/api/rh", tags=["rh"])  # cada ruta pide su permiso (ver app/permisos.py)
 
 
 def _colaboradores(db: Session) -> list[Usuario]:
@@ -27,7 +29,7 @@ def _colaboradores(db: Session) -> list[Usuario]:
 
 
 # ---------- Panel ----------
-@router.get("/panel")
+@router.get("/panel", dependencies=[Depends(requiere_permiso(permisos.PANEL_VER))])
 def panel(db: Session = Depends(get_db)):
     fichas = [ficha(db, u) for u in _colaboradores(db)]
     inicio_mes = date.today().replace(day=1)
@@ -62,7 +64,6 @@ def panel(db: Session = Depends(get_db)):
 
 
 # ---------- Personal: alta, responsables y bajas ----------
-ROLES_ALTA = ("colaborador", "supervisor", "rh")
 
 
 class NuevoUsuario(BaseModel):
@@ -127,29 +128,36 @@ def _asignar_temporal(u: Usuario) -> str:
     return temporal
 
 
-@router.get("/colaboradores")
+@router.get("/colaboradores", dependencies=[Depends(requiere_permiso(permisos.PERSONAL_GESTIONAR))])
 def colaboradores(db: Session = Depends(get_db)):
     return [ficha(db, u) for u in _colaboradores(db)]
 
 
-@router.get("/personal")
+@router.get("/personal", dependencies=[Depends(requiere_permiso(permisos.PERSONAL_GESTIONAR))])
 def personal(db: Session = Depends(get_db)):
     """Supervisores y personal de RH."""
     filas = db.scalars(select(Usuario).where(Usuario.rol != "colaborador").order_by(Usuario.rol, Usuario.nombre))
     return [_personal_json(db, u) for u in filas]
 
 
-@router.get("/responsables")
+@router.get("/roles", dependencies=[Depends(requiere_permiso(permisos.PERSONAL_GESTIONAR))])
+def roles(db: Session = Depends(get_db)):
+    """Catálogo de roles con sus permisos, tal como están guardados en la base de datos."""
+    return [{"clave": r.clave, "nombre": r.nombre, "permisos": [p.clave for p in r.permisos]}
+            for r in db.scalars(select(Rol).order_by(Rol.clave))]
+
+
+@router.get("/responsables", dependencies=[Depends(requiere_permiso(permisos.PERSONAL_GESTIONAR))])
 def responsables(db: Session = Depends(get_db)):
     filas = db.scalars(select(Usuario).where(Usuario.rol == "supervisor", Usuario.activo).order_by(Usuario.nombre))
     return [{"id": s.id, "nombre": s.nombre, "area": s.area, "a_cargo": _a_cargo(db, s.id)} for s in filas]
 
 
-@router.post("/usuarios")
+@router.post("/usuarios", dependencies=[Depends(requiere_permiso(permisos.PERSONAL_GESTIONAR))])
 def crear_usuario(datos: NuevoUsuario, tareas: BackgroundTasks, db: Session = Depends(get_db)):
     """RH da de alta a la persona. La respuesta trae la contraseña temporal: RH la ve una sola vez
     y se la entrega; al entrar por primera vez la persona crea la suya."""
-    if datos.rol not in ROLES_ALTA:
+    if not db.get(Rol, datos.rol):  # los roles válidos son los del catálogo (tabla roles)
         raise HTTPException(400, "Rol no válido.")
     if datos.area not in AREAS:
         raise HTTPException(400, "Área no válida.")
@@ -174,8 +182,8 @@ def crear_usuario(datos: NuevoUsuario, tareas: BackgroundTasks, db: Session = De
     return {**datos_usuario, "password_temporal": temporal, "correo_configurado": bool(config.SMTP_HOST)}
 
 
-@router.patch("/usuarios/{uid}")
-def editar_usuario(uid: int, datos: CambioUsuario, yo: Usuario = Depends(requiere_rol("rh")), db: Session = Depends(get_db)):
+@router.patch("/usuarios/{uid}", dependencies=[Depends(requiere_permiso(permisos.PERSONAL_GESTIONAR))])
+def editar_usuario(uid: int, datos: CambioUsuario, yo: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
     u = db.get(Usuario, uid)
     if not u:
         raise HTTPException(404, "Usuario no encontrado.")
@@ -204,8 +212,8 @@ def editar_usuario(uid: int, datos: CambioUsuario, yo: Usuario = Depends(requier
     return ficha(db, u) if u.rol == "colaborador" else _personal_json(db, u)
 
 
-@router.post("/usuarios/{uid}/password-temporal")
-def nueva_password_temporal(uid: int, tareas: BackgroundTasks, yo: Usuario = Depends(requiere_rol("rh")),
+@router.post("/usuarios/{uid}/password-temporal", dependencies=[Depends(requiere_permiso(permisos.PERSONAL_GESTIONAR))])
+def nueva_password_temporal(uid: int, tareas: BackgroundTasks, yo: Usuario = Depends(usuario_actual),
                             db: Session = Depends(get_db)):
     """Para quien perdió su contraseña temporal o no tiene acceso a su correo."""
     u = db.get(Usuario, uid)
@@ -260,7 +268,7 @@ def _modulo_json(db: Session, m: Modulo) -> dict:
             "intentos_maximos": m.intentos_maximos or 3}
 
 
-@router.get("/programas")
+@router.get("/programas", dependencies=[Depends(requiere_permiso(permisos.CAPACITACION_GESTIONAR))])
 def programas(db: Session = Depends(get_db)):
     salida = []
     for p in db.scalars(select(Programa).order_by(Programa.id)):
@@ -270,7 +278,7 @@ def programas(db: Session = Depends(get_db)):
     return salida
 
 
-@router.post("/programas")
+@router.post("/programas", dependencies=[Depends(requiere_permiso(permisos.CAPACITACION_GESTIONAR))])
 def crear_programa(datos: NuevoPrograma, db: Session = Depends(get_db)):
     if db.scalar(select(Programa).where(Programa.titulo == datos.titulo.strip())):
         raise HTTPException(409, "Ya existe un programa con ese nombre.")
@@ -280,12 +288,12 @@ def crear_programa(datos: NuevoPrograma, db: Session = Depends(get_db)):
     return {"id": p.id}
 
 
-@router.get("/modulos")
+@router.get("/modulos", dependencies=[Depends(requiere_permiso(permisos.CAPACITACION_GESTIONAR))])
 def modulos(db: Session = Depends(get_db)):
     return [_modulo_json(db, m) for m in db.scalars(select(Modulo).order_by(Modulo.programa_id, Modulo.orden, Modulo.id))]
 
 
-@router.post("/modulos")
+@router.post("/modulos", dependencies=[Depends(requiere_permiso(permisos.CAPACITACION_GESTIONAR))])
 def crear_modulo(datos: NuevoModulo, db: Session = Depends(get_db)):
     if not db.get(Programa, datos.programa_id):
         raise HTTPException(400, "Programa no válido.")
@@ -301,7 +309,7 @@ def crear_modulo(datos: NuevoModulo, db: Session = Depends(get_db)):
     return _modulo_json(db, m)
 
 
-@router.patch("/modulos/{mid}")
+@router.patch("/modulos/{mid}", dependencies=[Depends(requiere_permiso(permisos.CAPACITACION_GESTIONAR))])
 def editar_modulo(mid: int, datos: CambioModulo, db: Session = Depends(get_db)):
     m = db.get(Modulo, mid)
     if not m:
@@ -312,7 +320,7 @@ def editar_modulo(mid: int, datos: CambioModulo, db: Session = Depends(get_db)):
     return _modulo_json(db, m)
 
 
-@router.post("/modulos/{mid}/mover/{direccion}")
+@router.post("/modulos/{mid}/mover/{direccion}", dependencies=[Depends(requiere_permiso(permisos.CAPACITACION_GESTIONAR))])
 def mover_modulo(mid: int, direccion: str, db: Session = Depends(get_db)):
     m = db.get(Modulo, mid)
     if not m or direccion not in ("arriba", "abajo"):
@@ -333,7 +341,7 @@ class Rechazo(BaseModel):
     nota: str = Field(min_length=3, max_length=300)
 
 
-@router.get("/documentos")
+@router.get("/documentos", dependencies=[Depends(requiere_permiso(permisos.DOCUMENTOS_REVISAR))])
 def documentos_por_revisar(db: Session = Depends(get_db)):
     docs = db.scalars(select(DocumentoColaborador).order_by(DocumentoColaborador.estado != "revision",
                                                            DocumentoColaborador.actualizado_en.desc()).limit(100))
@@ -342,7 +350,7 @@ def documentos_por_revisar(db: Session = Depends(get_db)):
              "tiene_archivo": bool(d.archivo_ruta), "fecha": d.actualizado_en.isoformat()} for d in docs]
 
 
-@router.get("/documentos/{did}/archivo")
+@router.get("/documentos/{did}/archivo", dependencies=[Depends(requiere_permiso(permisos.DOCUMENTOS_REVISAR))])
 def ver_archivo(did: int, db: Session = Depends(get_db)):
     d = db.get(DocumentoColaborador, did)
     if not d or not d.archivo_ruta or not Path(d.archivo_ruta).is_file():
@@ -360,12 +368,12 @@ def _revisar(db: Session, did: int, estado: str, nota: str) -> dict:
     return {"ok": True}
 
 
-@router.post("/documentos/{did}/validar")
+@router.post("/documentos/{did}/validar", dependencies=[Depends(requiere_permiso(permisos.DOCUMENTOS_REVISAR))])
 def validar_documento(did: int, db: Session = Depends(get_db)):
     return _revisar(db, did, "validado", "Validado por RH")
 
 
-@router.post("/documentos/{did}/rechazar")
+@router.post("/documentos/{did}/rechazar", dependencies=[Depends(requiere_permiso(permisos.DOCUMENTOS_REVISAR))])
 def rechazar_documento(did: int, datos: Rechazo, db: Session = Depends(get_db)):
     return _revisar(db, did, "rechazado", datos.nota.strip())
 
@@ -381,8 +389,8 @@ class PreguntaAsistente(BaseModel):
     historial: list[MensajeAsistente] = []
 
 
-@router.post("/asistente")
-def asistente(datos: PreguntaAsistente, yo: Usuario = Depends(requiere_rol("rh")), db: Session = Depends(get_db)):
+@router.post("/asistente", dependencies=[Depends(requiere_permiso(permisos.ASISTENTE_RH_USAR))])
+def asistente(datos: PreguntaAsistente, yo: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
     if cache.limite_excedido(f"asistente_rh:{yo.id}", 15):
         raise HTTPException(429, "Hiciste muchas preguntas seguidas. Espera un minuto.")
     llm = ia.obtener_llm()  # 503 si la IA no está configurada
@@ -407,12 +415,12 @@ def _doc_json(d: DocumentoConocimiento) -> dict:
             "actualizado_en": d.actualizado_en.isoformat() if d.actualizado_en else None}
 
 
-@router.get("/conocimiento")
+@router.get("/conocimiento", dependencies=[Depends(requiere_permiso(permisos.CONOCIMIENTO_GESTIONAR))])
 def conocimiento(db: Session = Depends(get_db)):
     return [_doc_json(d) for d in db.scalars(select(DocumentoConocimiento).order_by(DocumentoConocimiento.titulo))]
 
 
-@router.post("/conocimiento")
+@router.post("/conocimiento", dependencies=[Depends(requiere_permiso(permisos.CONOCIMIENTO_GESTIONAR))])
 def crear_conocimiento(datos: DocConocimiento, db: Session = Depends(get_db)):
     d = DocumentoConocimiento(**datos.model_dump())
     db.add(d)
@@ -421,7 +429,7 @@ def crear_conocimiento(datos: DocConocimiento, db: Session = Depends(get_db)):
     return _doc_json(d)
 
 
-@router.put("/conocimiento/{did}")
+@router.put("/conocimiento/{did}", dependencies=[Depends(requiere_permiso(permisos.CONOCIMIENTO_GESTIONAR))])
 def editar_conocimiento(did: int, datos: DocConocimiento, db: Session = Depends(get_db)):
     d = db.get(DocumentoConocimiento, did)
     if not d:
@@ -433,7 +441,7 @@ def editar_conocimiento(did: int, datos: DocConocimiento, db: Session = Depends(
     return _doc_json(d)
 
 
-@router.delete("/conocimiento/{did}")
+@router.delete("/conocimiento/{did}", dependencies=[Depends(requiere_permiso(permisos.CONOCIMIENTO_GESTIONAR))])
 def eliminar_conocimiento(did: int, db: Session = Depends(get_db)):
     d = db.get(DocumentoConocimiento, did)
     if not d:
@@ -461,14 +469,14 @@ class NuevaPregunta(BaseModel):
         return v
 
 
-@router.get("/preguntas")
+@router.get("/preguntas", dependencies=[Depends(requiere_permiso(permisos.CAPACITACION_GESTIONAR))])
 def preguntas(db: Session = Depends(get_db)):
     return [{"id": p.id, "texto": p.texto, "opciones": p.opciones, "correcta": p.correcta,
              "modulo_id": p.modulo_id, "modulo": p.modulo.titulo, "minimo": p.modulo.puntuacion_minima}
             for p in db.scalars(select(Pregunta).order_by(Pregunta.id.desc()))]
 
 
-@router.post("/preguntas")
+@router.post("/preguntas", dependencies=[Depends(requiere_permiso(permisos.CAPACITACION_GESTIONAR))])
 def crear_pregunta(datos: NuevaPregunta, db: Session = Depends(get_db)):
     if not db.get(Modulo, datos.modulo_id):
         raise HTTPException(400, "Módulo no válido.")
@@ -480,7 +488,7 @@ def crear_pregunta(datos: NuevaPregunta, db: Session = Depends(get_db)):
     return {"id": p.id}
 
 
-@router.delete("/preguntas/{pid}")
+@router.delete("/preguntas/{pid}", dependencies=[Depends(requiere_permiso(permisos.CAPACITACION_GESTIONAR))])
 def eliminar_pregunta(pid: int, db: Session = Depends(get_db)):
     p = db.get(Pregunta, pid)
     if not p:

@@ -380,3 +380,32 @@ def test_mi_equipo_marca_a_quien_agoto_sus_intentos(client, admin, crear):
     # Con el intento extra deja de estar escalado.
     client.post(f"/api/supervisor/colaboradores/{uid}/modulos/{seg['id']}/intento-extra", headers=sup)
     assert fila()["escalados"] == []
+
+
+def test_permisos_se_configuran_con_datos(client, admin, crear):
+    """Dar o quitar un permiso a un rol es agregar o borrar una fila en rol_permisos, sin tocar el código."""
+    from app.db import SessionLocal
+    from app.models import RolPermiso
+    sup, _ = crear(rol="supervisor")
+    assert client.get("/api/rh/documentos", headers=sup).status_code == 403
+
+    with SessionLocal() as db:
+        db.add(RolPermiso(rol_clave="supervisor", permiso_clave="documentos.revisar"))
+        db.commit()
+    try:
+        assert client.get("/api/rh/documentos", headers=sup).status_code == 200
+        assert client.get("/api/rh/panel", headers=sup).status_code == 403  # solo ganó ese permiso
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.get(RolPermiso, ("supervisor", "documentos.revisar")))
+            db.commit()
+    assert client.get("/api/rh/documentos", headers=sup).status_code == 403
+
+    roles = {r["clave"]: r["permisos"] for r in client.get("/api/rh/roles", headers=admin).json()}
+    assert set(roles) == {"colaborador", "supervisor", "rh"}
+    assert "documentos.revisar" in roles["rh"] and "documentos.revisar" not in roles["supervisor"]
+
+    r = client.post("/api/rh/usuarios", headers=admin, json={
+        "nombre": "Rol Inventado", "correo": "rol.inventado@prueba.test", "rol": "director", "puesto": "Director",
+        "area": "Desarrollo"})
+    assert r.status_code == 400  # solo se aceptan roles del catálogo

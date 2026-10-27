@@ -5,11 +5,12 @@ from functools import lru_cache
 import bcrypt
 import jwt
 from fastapi import Depends, Header, HTTPException, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import cache, config
 from .db import get_db
-from .models import Usuario
+from .models import RolPermiso, Usuario
 
 
 _ALFABETO = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"  # sin 0/O ni 1/l/I para evitar confusiones
@@ -128,9 +129,15 @@ def usuario_actual(request: Request, authorization: str | None = Header(None), d
     return u
 
 
-def requiere_rol(*roles: str):
-    def dep(u: Usuario = Depends(usuario_actual)) -> Usuario:
-        if u.rol not in roles:
+def tiene_permiso(db: Session, u: Usuario, permiso: str) -> bool:
+    """Consulta en rol_permisos si el rol de la persona tiene ese permiso (ver app/permisos.py)."""
+    return db.scalar(select(RolPermiso.rol_clave).where(
+        RolPermiso.rol_clave == u.rol, RolPermiso.permiso_clave == permiso)) is not None
+
+
+def requiere_permiso(permiso: str):
+    def dep(u: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)) -> Usuario:
+        if not tiene_permiso(db, u, permiso):
             raise HTTPException(403, "No tienes permiso para esta sección.")
         return u
     return dep

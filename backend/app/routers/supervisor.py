@@ -10,21 +10,23 @@ from sqlalchemy.orm import Session
 from .. import cache, ia
 from ..db import get_db
 from ..models import Comentario, Modulo, ProgresoModulo, Usuario
-from ..seguridad import requiere_rol
+from ..permisos import EQUIPO_SEGUIMIENTO, EVALUACIONES_INTENTO_EXTRA, PERSONAL_GESTIONAR
+from ..seguridad import requiere_permiso, tiene_permiso
 from ..servicios import estado_modulos, evaluaciones_de, ficha, intentos, progreso_para_tutor
 
 router = APIRouter(prefix="/api/supervisor", tags=["supervisor"])
-supervisor = requiere_rol("supervisor")
+supervisor = requiere_permiso(EQUIPO_SEGUIMIENTO)
 
 TIPOS = ("comentario", "solicitud", "apoyo", "seguimiento")
 
 
 @router.post("/colaboradores/{uid}/modulos/{mid}/intento-extra")
-def conceder_intento(uid: int, mid: int, quien: Usuario = Depends(requiere_rol("supervisor", "rh")),
+def conceder_intento(uid: int, mid: int, quien: Usuario = Depends(requiere_permiso(EVALUACIONES_INTENTO_EXTRA)),
                      db: Session = Depends(get_db)):
-    """El responsable (de sus colaboradores) o RH (de cualquiera) concede un intento más en una evaluación."""
+    """El responsable (de sus colaboradores) o quien gestiona al personal (de cualquiera) concede un intento más."""
     u = db.get(Usuario, uid)
-    if not u or u.rol != "colaborador" or (quien.rol == "supervisor" and u.supervisor_id != quien.id):
+    de_cualquiera = tiene_permiso(db, quien, PERSONAL_GESTIONAR)
+    if not u or u.rol != "colaborador" or (not de_cualquiera and u.supervisor_id != quien.id):
         raise HTTPException(404, "Ese colaborador no está asignado a ti.")
     m = db.get(Modulo, mid)
     if not m or not m.preguntas:

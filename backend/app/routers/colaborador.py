@@ -14,14 +14,15 @@ from ..models import (
     Comentario, DocumentoColaborador, DocumentoConocimiento, Evaluacion, Modulo, ProgresoModulo, Tarea,
     TareaColaborador, TipoDocumento, Usuario, ahora,
 )
-from ..seguridad import requiere_rol
+from ..permisos import ONBOARDING_PROPIO
+from ..seguridad import requiere_permiso
 from ..validaciones import nombre_de_pila
 from ..servicios import (
     documentos_de, estado_modulos, evaluaciones_de, ficha, intentos, progreso_para_tutor, tareas_de,
 )
 
 router = APIRouter(prefix="/api/yo", tags=["colaborador"])
-colaborador = requiere_rol("colaborador")
+colaborador = requiere_permiso(ONBOARDING_PROPIO)
 
 EXTENSIONES = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 

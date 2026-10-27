@@ -10,7 +10,8 @@ from .. import cache, config, ia, nombres_agentes
 from ..validaciones import nombre_de_pila
 from ..db import SessionLocal
 from ..models import ConsultaTutor, Usuario
-from ..seguridad import requiere_rol, usuario_de_token
+from ..permisos import EVENTOS_TIEMPO_REAL, ONBOARDING_PROPIO
+from ..seguridad import requiere_permiso, tiene_permiso, usuario_de_token
 from ..servicios import progreso_para_tutor
 
 router = APIRouter(tags=["tiempo real"])
@@ -21,14 +22,14 @@ SALUDO = ("{saludo} Aquí te atienden el " + nombres_agentes.TUTOR_ONBOARDING + 
           + nombres_agentes.CONOCIMIENTO_GENERAL + ", que responde cualquier otra pregunta o definición.")
 
 
-def _autenticar(token: str | None, roles: tuple[str, ...]) -> Usuario | None:
+def _autenticar(token: str | None, permiso: str) -> Usuario | None:
     with SessionLocal() as db:
         u = usuario_de_token(db, token)
-        return u if u and u.rol in roles and not u.debe_cambiar_password else None
+        return u if u and not u.debe_cambiar_password and tiene_permiso(db, u, permiso) else None
 
 
 @router.get("/api/tutor/historial")
-def historial(u: Usuario = Depends(requiere_rol("colaborador"))):
+def historial(u: Usuario = Depends(requiere_permiso(ONBOARDING_PROPIO))):
     mensajes = cache.historial_chat(u.id)
     if not mensajes:
         pila = nombre_de_pila(u.nombre)
@@ -56,7 +57,7 @@ async def _responder(u: Usuario, pregunta: str) -> dict:
 
 @router.websocket("/ws/tutor")
 async def ws_tutor(ws: WebSocket, token: str | None = None):
-    u = _autenticar(token, ("colaborador",))
+    u = _autenticar(token, ONBOARDING_PROPIO)
     if not u:
         await ws.close(code=4401)
         return
@@ -67,7 +68,7 @@ async def ws_tutor(ws: WebSocket, token: str | None = None):
             pregunta = str(datos.get("pregunta", "")).strip()[:1000]
             if not pregunta:
                 continue
-            if not _autenticar(token, ("colaborador",)):  # lo dieron de baja con el chat abierto
+            if not _autenticar(token, ONBOARDING_PROPIO):  # lo dieron de baja con el chat abierto
                 await ws.send_json({"tipo": "error", "mensaje": "Tu cuenta fue dada de baja. Comunícate con Recursos Humanos."})
                 await ws.close(code=4401)
                 return
@@ -97,7 +98,7 @@ async def ws_tutor(ws: WebSocket, token: str | None = None):
 @router.websocket("/ws/eventos")
 async def ws_eventos(ws: WebSocket, token: str | None = None):
     """Los paneles de RH y supervisor se actualizan solos cuando algo cambia (Redis pub/sub)."""
-    if not _autenticar(token, ("rh", "supervisor")):
+    if not _autenticar(token, EVENTOS_TIEMPO_REAL):
         await ws.close(code=4401)
         return
     await ws.accept()

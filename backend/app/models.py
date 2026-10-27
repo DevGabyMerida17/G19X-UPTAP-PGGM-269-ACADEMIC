@@ -6,7 +6,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
 
-ROLES = ("colaborador", "rh", "supervisor")
 AREAS = ("Desarrollo", "Consultoría", "Capacitación", "Recursos Humanos")
 
 
@@ -22,6 +21,26 @@ class Programa(Base):
     modulos: Mapped[list["Modulo"]] = relationship(back_populates="programa", order_by="Modulo.orden")
 
 
+class Rol(Base):
+    """Catálogo de roles. Qué puede hacer cada uno se define con datos en rol_permisos, no en el código."""
+    __tablename__ = "roles"
+    clave: Mapped[str] = mapped_column(String(20), primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(60))
+    permisos: Mapped[list["Permiso"]] = relationship(secondary="rol_permisos", order_by="Permiso.clave")
+
+
+class Permiso(Base):
+    __tablename__ = "permisos"
+    clave: Mapped[str] = mapped_column(String(60), primary_key=True)
+    descripcion: Mapped[str] = mapped_column(String(200), default="")
+
+
+class RolPermiso(Base):
+    __tablename__ = "rol_permisos"
+    rol_clave: Mapped[str] = mapped_column(ForeignKey("roles.clave"), primary_key=True)
+    permiso_clave: Mapped[str] = mapped_column(ForeignKey("permisos.clave"), primary_key=True)
+
+
 class Usuario(Base):
     __tablename__ = "usuarios"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -29,7 +48,7 @@ class Usuario(Base):
     correo: Mapped[str] = mapped_column(String(200), unique=True, index=True)
     password_hash: Mapped[str | None] = mapped_column(String(200))
     entra_oid: Mapped[str | None] = mapped_column(String(64), unique=True)
-    rol: Mapped[str] = mapped_column(String(20), default="colaborador")
+    rol: Mapped[str] = mapped_column(ForeignKey("roles.clave"), default="colaborador")
     puesto: Mapped[str] = mapped_column(String(120), default="")
     area: Mapped[str] = mapped_column(String(60), default="Desarrollo")
     fecha_ingreso: Mapped[date] = mapped_column(Date, default=date.today)

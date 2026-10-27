@@ -29,7 +29,7 @@ La plataforma resuelve esto con **5 agentes de IA** que guían al colaborador de
 
 ## 3. Usuarios y roles
 
-El sistema tiene tres roles: `colaborador`, `supervisor` y `rh` (campo `rol` de la tabla `usuarios`). Cada ruta del backend declara qué roles la pueden usar con `requiere_rol(...)` (`backend/app/seguridad.py`). **Nadie se registra solo:** RH da de alta a todas las personas.
+El sistema arranca con tres roles: `colaborador`, `supervisor` y `rh`. **No están escritos como reglas fijas en el código:** son datos en las tablas `roles`, `permisos` y `rol_permisos`. Cada ruta del backend pide un permiso (por ejemplo `documentos.revisar`) con `requiere_permiso(...)` (`backend/app/seguridad.py`), y qué rol tiene cada permiso se consulta en la base de datos. Si la empresa reorganiza estas funciones, se ajustan los permisos con datos, sin cambiar código. **Nadie se registra solo:** RH da de alta a todas las personas.
 
 ### 3.1 Colaborador nuevo
 - Iniciar sesión con correo y contraseña (la primera vez, con una contraseña temporal que debe cambiar) o con Microsoft Entra ID cuando esté configurado.
@@ -136,7 +136,9 @@ Reglas implementadas:
 - Asistente de RH para consultar el estado del personal en lenguaje natural.
 
 ### 6.7 Roles y permisos
-- Tres roles fijos; cada ruta valida el rol con `requiere_rol` y el supervisor solo accede a sus asignados.
+- Catálogo de roles y permisos configurable por datos (tablas `roles`, `permisos` y `rol_permisos`, cargadas por la migración `0003`). Los permisos que revisa el código están en `backend/app/permisos.py`.
+- Dar o quitar un permiso a un rol es agregar o borrar una fila en `rol_permisos`; el alta de personal solo acepta roles del catálogo. `GET /api/rh/roles` muestra el catálogo vigente.
+- Además del permiso, el supervisor solo accede a los colaboradores que tiene asignados.
 - Las sesiones se guardan en Redis y se cierran al dar de baja a la persona o al cambiar su contraseña.
 
 ---
@@ -168,7 +170,7 @@ Patrón: un orquestador (grafo de LangGraph) enruta cada pregunta del chat al ag
 
 ## 8. Requisitos no funcionales
 
-- **Seguridad:** permisos por rol en cada ruta, contraseñas con bcrypt, enlaces de un solo uso con vencimiento, límite de peticiones en inicio de sesión, recuperación de contraseña y chats, y documentos servidos solo a usuarios autenticados con permiso.
+- **Seguridad:** permisos configurables por rol en cada ruta, contraseñas con bcrypt, enlaces de un solo uso con vencimiento, límite de peticiones en inicio de sesión, recuperación de contraseña y chats, y documentos servidos solo a usuarios autenticados con permiso.
 - **Cumplimiento:** marco legal de protección de datos aplicable (LFPDPPP en México).
 - **Disponibilidad:** el chat con agentes y la carga de documentos son las rutas críticas; el panel tolera mayor latencia.
 - **Costos de IA:** límite de mensajes por minuto en el Tutor y el Asistente de RH, historial acotado y retroalimentación y recomendaciones guardadas para no generarlas dos veces.
@@ -208,7 +210,7 @@ Interfaz propia (sin plantillas) con colores pastel, modo claro y oscuro, navega
 - Intento de recuperación automático tras una conversación dirigida con el Tutor.
 - Historial de versiones de documentos (hoy se reemplaza al volver a subir).
 - Material de capacitación multiarchivo (diapositivas, PDF, imágenes dentro de los módulos).
-- Catálogo de roles y permisos configurable por datos y bitácora de auditoría.
+- Pantalla para editar roles y permisos desde la interfaz (hoy se editan en la base de datos) y bitácora de auditoría.
 - Alertas con severidad y notificaciones persistidas (leído / no leído).
 - Sincronización con sistemas de RH (HRIS).
 - Botón en la interfaz de RH para conceder intentos extra (hoy lo hace el responsable; RH puede hacerlo vía API).
