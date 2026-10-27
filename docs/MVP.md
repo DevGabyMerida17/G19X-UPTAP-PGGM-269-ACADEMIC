@@ -79,7 +79,7 @@ Conexión con el modelo (Azure OpenAI o Gemini): `backend/app/ia.py`. Nombres de
 | Función | Dónde |
 |---|---|
 | Avisos en tiempo real (WebSocket `/ws/eventos` con pub/sub de Redis) | `backend/app/routers/tiempo_real.py`, `backend/app/cache.py`; `useEventos` en `frontend/src/ui.jsx` |
-| Modelo de datos (13 tablas) y datos iniciales | `backend/app/models.py`, `backend/app/seed.py` |
+| Modelo de datos (13 tablas), migraciones y datos iniciales | `backend/app/models.py`, `backend/migraciones/versions/` (Alembic), `backend/app/seed.py` |
 | Modo claro y oscuro, interfaz por rol | `frontend/src/estilos.css`, `frontend/src/App.jsx` |
 | Pruebas automáticas (sin gastar IA: modelo falso) | `backend/tests/` |
 | Contenedores | `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` |
@@ -99,7 +99,6 @@ Conexión con el modelo (Azure OpenAI o Gemini): `backend/app/ia.py`. Nombres de
 | Catálogo de roles y permisos configurable y bitácora de auditoría | Tres roles fijos cubren la operación inicial |
 | Alertas con severidad y notificaciones persistidas | El MVP avisa en tiempo real y en el panel |
 | Sincronización con el sistema de RH (HRIS) | No hay API confirmada; el alta es manual |
-| Migraciones con Alembic | El MVP agrega columnas nuevas al arrancar (`_agregar_columnas_faltantes` en `seed.py`) |
 
 ---
 

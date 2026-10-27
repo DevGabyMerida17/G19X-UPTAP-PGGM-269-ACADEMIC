@@ -10,7 +10,7 @@ Proyecto de estadía para **PluriOne S.A. de C.V. (Develop Talent & Technology)*
 | API backend | Python + FastAPI, con WebSocket para el chat | `backend/app/main.py`, `backend/app/routers` |
 | Capa de agentes | LangGraph + LangChain | `backend/app/agente.py`, `backend/app/rag.py` |
 | Modelos de lenguaje | Azure OpenAI Service (principal) y Google Gemini (alternativa, la que se usa ahora) | `backend/app/ia.py` |
-| Base de datos | PostgreSQL (SQLAlchemy) | `backend/app/models.py` |
+| Base de datos | PostgreSQL (SQLAlchemy) con migraciones de Alembic | `backend/app/models.py`, `backend/migraciones/` |
 | Caché / estado | Redis: sesiones, enlaces de un solo uso, historial del chat, límite de peticiones y pub/sub | `backend/app/cache.py` |
 | Autenticación | Correo con contraseña y Microsoft Entra ID (MSAL, listo para activarse) | `backend/app/seguridad.py`, `frontend/src/paginas/Acceso.jsx` |
 | Correo | SMTP (Microsoft 365 u otro); Mailpit para pruebas | `backend/app/correo.py` |
@@ -205,6 +205,19 @@ docker compose up --build
 
 5. Abre http://localhost:8080 e inicia sesión con la cuenta de RH.
 
+## Migraciones de la base de datos
+
+El esquema se versiona con **Alembic** en `backend/migraciones/versions/`. Al arrancar, el backend aplica solo las migraciones que falten (`migrar()` en `backend/app/seed.py`); si encuentra una base creada antes de usar migraciones, la marca en la versión que ya tiene en lugar de recrear las tablas.
+
+Después de cambiar `backend/app/models.py`, desde la carpeta `backend`:
+
+```bash
+alembic revision --autogenerate -m "describe el cambio"
+alembic upgrade head
+```
+
+Revisa el archivo generado antes de subirlo. `alembic check` confirma que los modelos y las migraciones coinciden.
+
 ## Pruebas
 
 ```bash
@@ -219,4 +232,3 @@ Las pruebas usan SQLite, un Redis simulado y un modelo falso para el agente, as�
 - **Azure OpenAI y Microsoft Entra ID:** activarlos con la cuenta de Azure de PluriOne (ver [Estado de Azure OpenAI y Microsoft Entra ID](#estado-de-azure-openai-y-microsoft-entra-id)).
 - **Contenido de ejemplo:** los documentos de `backend/conocimiento/` son de ejemplo y hay que reemplazarlos con la información oficial de RH.
 - **Integración con HRIS:** la sincronización con el sistema de RH de la empresa todavía no está implementada.
-- **Migraciones:** las tablas se crean al arrancar. Si ya tenías una base de datos de una versión anterior, bórrala o agrega Alembic para migrarla.

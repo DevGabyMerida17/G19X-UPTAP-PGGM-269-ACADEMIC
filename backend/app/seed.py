@@ -1,14 +1,16 @@
-"""Crea las tablas y carga los datos iniciales la primera vez que arranca la API."""
+"""Aplica las migraciones y carga los datos iniciales la primera vez que arranca la API."""
 import re
 from datetime import date, timedelta
 
-from sqlalchemy import inspect, select, text
-from sqlalchemy.orm import Session
-
 import logging
 
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import inspect, select
+from sqlalchemy.orm import Session
+
 from . import config, correo
-from .db import Base, engine
+from .db import engine
 from .seguridad import crear_enlace, hash_password
 from .models import (
     DocumentoColaborador, DocumentoConocimiento, Evaluacion, Modulo, Pregunta, Programa, ProgresoModulo, Tarea,
@@ -95,27 +97,23 @@ def secciones(contenido: str) -> list[dict]:
     return salida
 
 
-# Columnas agregadas después de la primera versión: (tabla, columna, tipo SQL con valor por defecto).
-COLUMNAS_NUEVAS = [
-    ("modulos", "intentos_maximos", "INTEGER NOT NULL DEFAULT 3"),
-    ("progreso_modulos", "intentos_extra", "INTEGER NOT NULL DEFAULT 0"),
-    ("evaluaciones", "retro_ia", "JSON"),
-]
-
-
-def _agregar_columnas_faltantes() -> None:
-    """Migración sencilla para bases ya existentes (create_all no agrega columnas a tablas creadas)."""
-    existentes = {t: {c["name"] for c in inspect(engine).get_columns(t)} for t, _, _ in COLUMNAS_NUEVAS}
+def migrar() -> None:
+    """Lleva la base a la última versión con las migraciones de Alembic (backend/migraciones/versions)."""
+    cfg = Config(str(config.BASE_DIR / "alembic.ini"))
     with engine.begin() as con:
-        for tabla, columna, tipo in COLUMNAS_NUEVAS:
-            if columna not in existentes[tabla]:
-                con.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}"))
-                log.warning("Columna agregada: %s.%s", tabla, columna)
+        cfg.attributes["connection"] = con
+        tablas = inspect(con).get_table_names()
+        if "usuarios" in tablas and "alembic_version" not in tablas:
+            # Base creada antes de usar migraciones: se marca la versión que ya tiene para no recrear tablas.
+            columnas = {c["name"] for c in inspect(con).get_columns("modulos")}
+            actual = "0002" if "intentos_maximos" in columnas else "0001"
+            command.stamp(cfg, actual)
+            log.warning("Base existente marcada en la migración %s", actual)
+        command.upgrade(cfg, "head")
 
 
 def inicializar() -> None:
-    Base.metadata.create_all(engine)
-    _agregar_columnas_faltantes()
+    migrar()
     with Session(engine) as db:
         if not db.scalar(select(Programa).limit(1)):
             _cargar_catalogos(db)

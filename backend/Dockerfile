@@ -4,6 +4,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
+COPY alembic.ini .
+COPY migraciones ./migraciones
 COPY conocimiento ./conocimiento
 RUN useradd --create-home api && mkdir -p /data/uploads && chown api /data/uploads
 USER api
