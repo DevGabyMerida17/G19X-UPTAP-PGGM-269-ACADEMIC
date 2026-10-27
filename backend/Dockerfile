@@ -4,6 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
+# Documentos de ejemplo; la información real se monta en /app/conocimiento_privado (ver docker-compose.yml)
 COPY conocimiento ./conocimiento
 RUN useradd --create-home api && mkdir -p /data/uploads && chown api /data/uploads
 USER api

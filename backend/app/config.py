@@ -25,7 +25,11 @@ CARGAR_DATOS_DEMO = _env("CARGAR_DATOS_DEMO", "true").lower() == "true"
 CORS_ORIGINS = [o for o in _env("CORS_ORIGINS", "http://localhost:5173").split(",") if o]
 
 UPLOADS_DIR = Path(_env("UPLOADS_DIR", str(BASE_DIR / "uploads")))
-CONOCIMIENTO_DIR = BASE_DIR / "conocimiento"
+# conocimiento/ trae documentos de ejemplo (están en GitHub). La información real de la empresa es
+# confidencial: va en conocimiento_privado/, que no se sube, y si existe se usa en lugar de los ejemplos.
+CONOCIMIENTO_DIR = BASE_DIR / "conocimiento_privado"
+if not any(CONOCIMIENTO_DIR.glob("*.md")):
+    CONOCIMIENTO_DIR = BASE_DIR / "conocimiento"
 MAX_ARCHIVO_MB = 5
 
 # Azure OpenAI Service

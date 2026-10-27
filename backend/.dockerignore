@@ -4,3 +4,7 @@ uploads
 *.db
 tests
 .pytest_cache
+.venv
+correos_enviados
+CUENTAS_DE_PRUEBA.md
+conocimiento_privado
