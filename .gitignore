@@ -19,9 +19,6 @@ __pycache__/
 /backend/uploads/*
 !/backend/uploads/.gitkeep
 
-# Documentación confidencial de onboarding (los ejemplos de backend/conocimiento/ sí se suben)
-/backend/conocimiento_privado/
-
 # Entorno de Python y archivos locales de prueba
 .venv/
 correos_enviados/

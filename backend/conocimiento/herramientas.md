@@ -1,12 +1,12 @@
 ---
-titulo: Herramientas de trabajo (ejemplo)
+titulo: Herramientas del área
 tema: Herramientas
 ---
-## Comunicación
-Usamos el correo corporativo y el chat interno para comunicarnos con el equipo.
+## Repositorios
+El código vive en GitHub. Cada cambio pasa por revisión de código y por las pruebas automáticas de GitHub Actions antes de integrarse.
 
-## Control de versiones
-El código se guarda en repositorios Git y los cambios se revisan antes de integrarse.
+## Contenedores
+Los servicios se ejecutan en contenedores Docker para que funcionen igual en todos los equipos.
 
-## Metodología
-Los proyectos se organizan con Scrum: sprints cortos, reuniones diarias y revisiones al final de cada sprint.
+## Reuniones de Scrum
+La reunión diaria de Scrum dura 15 minutos. Cada sprint termina con una revisión y una retrospectiva.

@@ -1,12 +1,12 @@
 ---
-titulo: Seguridad de la información (ejemplo)
+titulo: Seguridad de la información
 tema: Seguridad
 ---
 ## Contraseñas
-Tus credenciales son personales. Usa contraseñas largas, no las compartas y activa la verificación en dos pasos.
+Usa contraseñas largas y únicas. Activa la verificación en dos pasos en tu cuenta corporativa de Microsoft.
 
-## Correos sospechosos
-Si un correo te pide tu contraseña o datos personales, no respondas: repórtalo al área de TI.
+## Phishing
+El phishing es un engaño por correo o mensaje que intenta que entregues tus datos o abras un enlace malicioso. Desconfía de mensajes que piden contraseñas o te apuran, no respondas y repórtalos al área de TI.
 
 ## Información de clientes
-Guarda la información de clientes solo en los repositorios autorizados, nunca en memorias USB ni en tu correo personal.
+Los datos de clientes solo se guardan en los repositorios autorizados por la empresa, nunca en memorias USB, correos personales o cuentas personales en la nube.

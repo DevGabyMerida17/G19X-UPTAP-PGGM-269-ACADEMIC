@@ -35,7 +35,6 @@ services:
       # SMTP_HOST=mailpit, SMTP_PORT=1025, SMTP_STARTTLS=false
     volumes:
       - uploads:/data/uploads
-      - ./backend/conocimiento_privado:/app/conocimiento_privado:ro  # información confidencial (no está en GitHub)
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

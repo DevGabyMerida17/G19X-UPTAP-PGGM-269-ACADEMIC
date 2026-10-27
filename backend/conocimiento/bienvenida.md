@@ -1,12 +1,18 @@
 ---
-titulo: Bienvenida a la empresa (ejemplo)
+titulo: Bienvenida a PluriOne
 tema: Empresa
 ---
 ## Quiénes somos
-Somos una empresa de consultoría, desarrollo de software y capacitación en tecnologías de la información. Este texto es de ejemplo: la información oficial la agrega Recursos Humanos.
+PluriOne S.A. de C.V., con nombre comercial Develop Talent & Technology, es una empresa mexicana mediana del sector privado. Su giro es la consultoría, el desarrollo de software y la capacitación en tecnologías de la información.
 
-## Horario
-El horario de ejemplo es de lunes a viernes de 09:00 a 18:00 horas.
+## Dónde estamos
+Las oficinas están en Puebla 46, Colonia Roma Norte, Alcaldía Cuauhtémoc, C.P. 06700, Ciudad de México.
 
-## Tu primer día
-Recibirás tu equipo de cómputo, tus accesos y la presentación con tu equipo de trabajo.
+## Horario de atención
+La empresa atiende de lunes a viernes de 09:00 a 18:00 horas.
+
+## Contacto
+Teléfono: 55 1900 3503. Correo: contacto@develop.com.mx.
+
+## Nuestra forma de trabajar
+Trabajamos con la metodología ágil Scrum, colaboración entre áreas y aprendizaje continuo. Nos enfocamos en soluciones HRTech y en el ciclo de vida del colaborador.
