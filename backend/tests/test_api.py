@@ -342,3 +342,16 @@ def test_agentes_no_usan_numeros_como_nombre(client, admin, crear):
     assert client.patch(f"/api/rh/usuarios/{uid}", headers=admin, json={"nombre": "Jesús 23"}).status_code == 422
     r = client.patch(f"/api/rh/usuarios/{uid}", headers=admin, json={"nombre": "jesús rizo"})
     assert r.json()["nombre"] == "Jesús Rizo"
+
+
+def test_microsoft_completa_el_nombre_si_no_es_valido(client, crear, monkeypatch):
+    from app.routers import auth
+    h, uid = crear(nombre="23344")
+    correo = client.get("/api/auth/yo", headers=h).json()["correo"]
+    claims = {"oid": f"oid-{uid}", "preferred_username": correo, "name": "Jesús Rizo"}
+    monkeypatch.setattr(auth, "validar_token_entra", lambda _t: claims)
+    assert client.post("/api/auth/microsoft", json={"id_token": "x"}).json()["usuario"]["nombre"] == "Jesús Rizo"
+
+    # Si ya tiene un nombre válido (el que puso RH), no se reemplaza.
+    claims["name"] = "Otro Nombre"
+    assert client.post("/api/auth/microsoft", json={"id_token": "x"}).json()["usuario"]["nombre"] == "Jesús Rizo"

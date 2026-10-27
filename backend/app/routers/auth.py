@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .. import cache, config, correo, nombres_agentes
 from ..db import get_db
 from ..models import AREAS, Usuario
-from ..validaciones import validar_correo
+from ..validaciones import nombre_de_pila, validar_correo, validar_nombre
 from ..seguridad import (
     cerrar_sesion, cerrar_todas_las_sesiones, crear_enlace, crear_sesion, error_cuenta_inactiva, hash_password,
     leer_enlace, usar_enlace, usuario_actual, validar_token_entra, verificar_password,
@@ -119,6 +119,12 @@ def login_microsoft(datos: LoginMicrosoft, db: Session = Depends(get_db)):
     if not u.activo:
         raise error_cuenta_inactiva()
     u.entra_oid = oid
+    # Si RH no registró un nombre válido (p. ej. solo números), se toma el de la cuenta de Microsoft.
+    if not nombre_de_pila(u.nombre):
+        try:
+            u.nombre = validar_nombre((claims.get("name") or "").strip())
+        except ValueError:
+            pass
     db.commit()
     return {"token": crear_sesion(u.id), "usuario": perfil(u)}
 
