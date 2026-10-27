@@ -17,6 +17,7 @@ function Lista({ abrir }) {
       {(e) => {
         const cols = e.colaboradores;
         const promedio = cols.length ? Math.round(cols.reduce((s, c) => s + c.avance, 0) / cols.length) : 0;
+        const escalados = cols.filter((c) => c.escalados.length).length;
         return (
           <>
             <div className="head"><h1>Mi equipo</h1><p className="muted">Colaboradores que Recursos Humanos te asignó para darles seguimiento.</p></div>
@@ -25,12 +26,19 @@ function Lista({ abrir }) {
               <div className="card tint-peach stat"><div className="small">Con retraso</div><div className="n">{cols.filter((c) => c.estado === "retrasado").length}</div></div>
               <div className="card tint-mint stat"><div className="small">Avance promedio</div><div className="n">{promedio}%</div></div>
             </div>
+            {escalados > 0 && (
+              <div className="notice rose mt" role="status">
+                <b>{escalados === 1 ? "1 colaborador agotó" : `${escalados} colaboradores agotaron`} sus intentos en una evaluación.</b>{" "}
+                Ábrelo para revisar sus resultados y, si lo consideras, darle un intento más.
+              </div>
+            )}
             {cols.length === 0 ? <div className="notice mt">Recursos Humanos aún no te asigna colaboradores.</div> : (
               <div className="card mt"><div className="tablewrap"><table>
                 <thead><tr><th>Colaborador</th><th>Área</th><th>Inicio</th><th style={{ width: "26%" }}>Avance</th><th>Estado</th><th>Seguimiento</th></tr></thead>
                 <tbody>{cols.map((c) => (
                   <tr key={c.id} className="click" tabIndex={0} onClick={() => abrir(c.id)} onKeyDown={(ev) => ev.key === "Enter" && abrir(c.id)}>
-                    <td><b>{c.nombre}</b><div className="small muted">{c.puesto}</div></td>
+                    <td><b>{c.nombre}</b><div className="small muted">{c.puesto}</div>
+                      {c.escalados.map((m) => <span key={m.modulo_id} className="chip bad mt-s">Agotó intentos · {m.modulo}</span>)}</td>
                     <td className="muted">{c.area}</td>
                     <td className="muted">{fecha(c.fecha_ingreso)}</td>
                     <td><div className="row"><Barra valor={c.avance} tono={tonoBarra(c.estado)} /><span className="small">{c.avance}%</span></div></td>

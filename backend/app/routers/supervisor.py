@@ -60,7 +60,10 @@ def equipo(sup: Usuario = Depends(supervisor), db: Session = Depends(get_db)):
     salida = []
     for u in miembros:
         n = db.scalar(select(func.count()).select_from(Comentario).where(Comentario.colaborador_id == u.id)) or 0
-        salida.append({**ficha(db, u), "comentarios": n})
+        # Escalamiento: evaluaciones donde ya agotó sus intentos sin aprobar y necesita al responsable.
+        escalados = [{"modulo_id": e["modulo_id"], "modulo": e["modulo"]} for e in evaluaciones_de(db, u) if e["intentos_agotados"]]
+        salida.append({**ficha(db, u), "comentarios": n, "escalados": escalados})
+    salida.sort(key=lambda c: not c["escalados"])  # primero a quien requiere intervención
     return {"area": sup.area, "colaboradores": salida}
 
 

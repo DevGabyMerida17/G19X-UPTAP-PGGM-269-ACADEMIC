@@ -355,3 +355,28 @@ def test_microsoft_completa_el_nombre_si_no_es_valido(client, crear, monkeypatch
     # Si ya tiene un nombre válido (el que puso RH), no se reemplaza.
     claims["name"] = "Otro Nombre"
     assert client.post("/api/auth/microsoft", json={"id_token": "x"}).json()["usuario"]["nombre"] == "Jesús Rizo"
+
+
+def test_mi_equipo_marca_a_quien_agoto_sus_intentos(client, admin, crear):
+    sup, sup_id = crear(rol="supervisor")
+    h, uid = crear(supervisor_id=sup_id)
+    crear(supervisor_id=sup_id)  # otro integrante que no ha reprobado
+    seg, ev = _llegar_a_la_evaluacion(client, h)
+    mal = {"respuestas": {str(p["id"]): 0 for p in ev["preguntas"]}}
+
+    def fila():
+        return next(c for c in client.get("/api/supervisor/equipo", headers=sup).json()["colaboradores"] if c["id"] == uid)
+
+    for _ in range(2):
+        client.post(f"/api/yo/modulos/{seg['id']}/evaluacion", headers=h, json=mal)
+    assert fila()["escalados"] == []  # aún le queda un intento
+
+    client.post(f"/api/yo/modulos/{seg['id']}/evaluacion", headers=h, json=mal)
+    equipo = client.get("/api/supervisor/equipo", headers=sup).json()["colaboradores"]
+    assert equipo[0]["id"] == uid  # aparece primero, sin abrir su detalle
+    assert equipo[0]["escalados"] == [{"modulo_id": seg["id"], "modulo": seg["titulo"]}]
+    assert all(c["escalados"] == [] for c in equipo[1:])
+
+    # Con el intento extra deja de estar escalado.
+    client.post(f"/api/supervisor/colaboradores/{uid}/modulos/{seg['id']}/intento-extra", headers=sup)
+    assert fila()["escalados"] == []
