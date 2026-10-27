@@ -90,6 +90,10 @@ function Login({ config, alEntrar, avisoInicial, alOlvide }) {
 
   const microsoft = async () => {
     setError(""); setAviso(null);
+    if (!config.entra) {
+      setAviso({ tipo: "info", texto: "El inicio de sesión con Microsoft todavía no está habilitado. Usa tu correo y contraseña." });
+      return;
+    }
     try {
       // Se carga solo cuando se usa, para que la página inicie más rápido.
       const { PublicClientApplication } = await import("@azure/msal-browser");
@@ -128,14 +132,9 @@ function Login({ config, alEntrar, avisoInicial, alOlvide }) {
       </form>
 
       <div className="divider"><span>o</span></div>
-      <button className="btn ghost full ms" onClick={microsoft} disabled={!config.entra}>
+      <button className="btn ghost full ms" onClick={microsoft}>
         <IconoMicrosoft />Continuar con Microsoft
       </button>
-      {!config.entra && (
-        <p className="small muted mt-s" style={{ textAlign: "center" }}>
-          Disponible cuando se configure Microsoft Entra ID en el servidor.
-        </p>
-      )}
 
       <p className="small muted mt" style={{ textAlign: "center" }}>
         ¿Eres nuevo? <b style={{ color: "var(--lav-ink)" }}>Recursos Humanos</b> crea tu cuenta y te entrega una contraseña temporal.
