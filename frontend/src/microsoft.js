@@ -25,7 +25,19 @@ async function cliente(entra) {
   return msal;
 }
 
-const PERMISOS = { scopes: ["openid", "profile", "email"] };
+// select_account: Microsoft pregunta con qué cuenta entrar (o usar otra).
+// max_age=0: aunque recuerde la cuenta, vuelve a pedir la contraseña.
+const PERMISOS = { scopes: ["openid", "profile", "email"], prompt: "select_account", extraQueryParameters: { max_age: "0" } };
+
+/** Al salir de la plataforma se borra lo que MSAL guardó en el navegador (cuenta y tokens). */
+export function olvidarCuenta() {
+  for (const almacen of [sessionStorage, localStorage]) {
+    try {
+      Object.keys(almacen).filter((k) => k.startsWith("msal.") || k.includes("login.windows.net") || k.includes("login.microsoftonline.com"))
+        .forEach((k) => almacen.removeItem(k));
+    } catch { /* sin almacenamiento */ }
+  }
+}
 
 /** Abre la ventana de Microsoft. Si el navegador la bloquea, continúa en la misma pestaña:
     en ese caso la página se va a Microsoft y regresa, y devuelve null. */

@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api, onSesionExpirada, sesion } from "./api.js";
+import { olvidarCuenta } from "./microsoft.js";
 import { Barra, BotonTema, Cargando, ErrorCaja, Marca, iniciales, useApi } from "./ui.jsx";
 import Acceso from "./paginas/Acceso.jsx";
 import NuevaPassword from "./paginas/NuevaPassword.jsx";
@@ -67,6 +68,7 @@ export default function App() {
   const salir = useCallback(async () => {
     try { await api("/api/auth/salir", { metodo: "POST" }); } catch { /* ya no importa */ }
     sesion.borrar();
+    olvidarCuenta();
     setUsuario(null);
   }, []);
 

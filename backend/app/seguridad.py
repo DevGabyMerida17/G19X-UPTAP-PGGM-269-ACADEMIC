@@ -1,4 +1,5 @@
 """Contraseñas, sesiones (en Redis) y validación de tokens de Microsoft Entra ID."""
+import logging
 import secrets
 from functools import lru_cache
 
@@ -144,6 +145,9 @@ def requiere_permiso(permiso: str):
 
 
 # ---------- Microsoft Entra ID ----------
+log = logging.getLogger("entra")
+
+
 @lru_cache
 def _jwks() -> jwt.PyJWKClient:
     return jwt.PyJWKClient(f"https://login.microsoftonline.com/{config.ENTRA_TENANT_ID}/discovery/v2.0/keys")
@@ -161,6 +165,8 @@ def validar_token_entra(id_token: str) -> dict:
             algorithms=["RS256"],
             audience=config.ENTRA_CLIENT_ID,
             issuer=f"https://login.microsoftonline.com/{config.ENTRA_TENANT_ID}/v2.0",
+            leeway=120,  # tolera unos segundos de diferencia entre el reloj del servidor y el de Microsoft
         )
     except jwt.PyJWTError as e:
+        log.warning("Token de Microsoft rechazado: %s: %s", type(e).__name__, e)
         raise HTTPException(401, "El token de Microsoft no es válido.") from e
