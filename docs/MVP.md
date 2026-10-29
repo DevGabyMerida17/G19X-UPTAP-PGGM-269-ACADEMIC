@@ -22,6 +22,7 @@ El MVP es la versión mínima que cubre el ciclo completo de incorporación: **R
 | Bajas y reactivación; aviso de cuenta dada de baja | `PATCH /api/rh/usuarios/{uid}`; `error_cuenta_inactiva` en `seguridad.py` | `Colaboradores.jsx` |
 | Eliminar a una persona con su registro; lo que escribió sobre otros se conserva como «Usuario eliminado» | `DELETE /api/rh/usuarios/{uid}` → `eliminar_usuario` en `rh.py`; migración `0004` | Bote de basura en `Colaboradores.jsx` |
 | Nueva contraseña temporal y corrección de nombre | `POST /api/rh/usuarios/{uid}/password-temporal`, `PATCH /api/rh/usuarios/{uid}` | `Colaboradores.jsx` |
+| Foto de perfil (JPG o PNG, máx. 2 MB) que cada persona sube desde su avatar | `POST`/`DELETE /api/auth/yo/foto`, `GET /api/usuarios/{uid}/foto` en `auth.py`; migración `0005` | `MiFoto` en `frontend/src/App.jsx`, `Avatar` en `frontend/src/ui.jsx` |
 | Validación de correo y nombre | `backend/app/validaciones.py` | `frontend/src/validaciones.js` |
 | Sesiones y límite de intentos | `backend/app/seguridad.py`, `backend/app/cache.py` (Redis) | `frontend/src/api.js` |
 | Roles y permisos como datos (tablas `roles`, `permisos`, `rol_permisos`) | `requiere_permiso` en `seguridad.py`, catálogo en `backend/app/permisos.py`, datos iniciales en la migración `0003`; `GET /api/rh/roles` | — |
