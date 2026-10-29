@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Lock, Mail, ShieldCheck } from "lucide-react";
 import { api } from "../api.js";
+import { iniciarSesion, respuestaPendiente } from "../microsoft.js";
 import { BotonTema, Marca } from "../ui.jsx";
 import { errorCorreo, propsCorreo, propsPassword } from "../validaciones.js";
 
@@ -95,22 +96,21 @@ function Login({ config, alEntrar, avisoInicial, alOlvide }) {
       return;
     }
     try {
-      // Se carga solo cuando se usa, para que la página inicie más rápido.
-      const { PublicClientApplication } = await import("@azure/msal-browser");
-      const msal = new PublicClientApplication({
-        auth: {
-          clientId: config.entra.client_id,
-          authority: `https://login.microsoftonline.com/${config.entra.tenant_id}`,
-          redirectUri: window.location.origin,
-        },
-      });
-      await msal.initialize();
-      const r = await msal.loginPopup({ scopes: ["openid", "profile", "email"] });
-      alEntrar(await api("/api/auth/microsoft", { metodo: "POST", datos: { id_token: r.idToken } }));
-    } catch (err) {
-      if (err?.errorCode !== "user_cancelled") fallo(err.status ? err : { message: err.message || "No se pudo iniciar sesión con Microsoft." });
-    }
+      await entrarConToken(await iniciarSesion(config.entra));
+    } catch (err) { falloMicrosoft(err); }
   };
+
+  const entrarConToken = async (idToken) => {
+    if (idToken) alEntrar(await api("/api/auth/microsoft", { metodo: "POST", datos: { id_token: idToken } }));
+  };
+  const falloMicrosoft = (err) => {
+    if (err?.errorCode !== "user_cancelled") fallo(err.status ? err : { message: err.message || "No se pudo iniciar sesión con Microsoft." });
+  };
+
+  // Si el navegador bloqueó la ventana, el inicio de sesión se hizo en esta pestaña: aquí se termina.
+  useEffect(() => {
+    if (config.entra) respuestaPendiente(config.entra).then(entrarConToken).catch(falloMicrosoft);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
