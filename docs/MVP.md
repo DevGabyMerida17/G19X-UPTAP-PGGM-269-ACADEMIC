@@ -1,7 +1,7 @@
 # MVP — Plataforma de Onboarding Interactivo Guiado por Agentes Inteligentes
 
 **Empresa:** PluriOne S.A. de C.V. (Develop Talent & Technology)
-**Versión:** 1.0 · Octubre 2026
+**Versión:** 1.1 · 29 de octubre de 2026
 **Relacionado:** [`PRD.md`](../PRD.md) (requisitos) · [`README.md`](../README.md) (instalación y configuración)
 
 El MVP es la versión mínima que cubre el ciclo completo de incorporación: **RH da de alta → el colaborador completa su ruta con apoyo de los agentes → el supervisor y RH dan seguimiento.** Todo lo que está en "Entra en el MVP" funciona hoy y tiene pruebas automáticas en `backend/tests/`. Para comprobarlo a mano, sigue el [recorrido de prueba](#4-recorrido-de-prueba).
@@ -17,7 +17,7 @@ El MVP es la versión mínima que cubre el ciclo completo de incorporación: **R
 | Alta de personas por RH (sin registro público), con contraseña temporal en pantalla y por correo | `POST /api/rh/usuarios` → `crear_usuario` en `backend/app/routers/rh.py`; correo en `backend/app/correo.py` | `frontend/src/paginas/rh/Colaboradores.jsx` |
 | Cambio obligatorio de contraseña en el primer inicio | `POST /api/auth/cambiar-password` en `backend/app/routers/auth.py` | `frontend/src/paginas/CambioObligatorio.jsx` |
 | Inicio de sesión con correo y contraseña | `POST /api/auth/login` en `backend/app/routers/auth.py` | `frontend/src/paginas/Acceso.jsx` |
-| Inicio de sesión con Microsoft Entra ID (listo para configurar) | `POST /api/auth/microsoft`; validación del token en `validar_token_entra` (`backend/app/seguridad.py`) | `Acceso.jsx` (MSAL) |
+| Inicio de sesión con Microsoft Entra ID: elegir cuenta y contraseña en cada inicio, con respaldo en la misma pestaña si se bloquea la ventana emergente (probado con un directorio propio) | `POST /api/auth/microsoft`; validación del token en `validar_token_entra` (`backend/app/seguridad.py`) | `Acceso.jsx`, `frontend/src/microsoft.js` (MSAL) |
 | ¿Olvidaste tu contraseña? con enlace de un solo uso | `POST /api/auth/olvide` y `POST /api/auth/nueva-password` | `Acceso.jsx`, `frontend/src/paginas/NuevaPassword.jsx` |
 | Bajas y reactivación; aviso de cuenta dada de baja | `PATCH /api/rh/usuarios/{uid}`; `error_cuenta_inactiva` en `seguridad.py` | `Colaboradores.jsx` |
 | Eliminar a una persona con su registro; lo que escribió sobre otros se conserva como «Usuario eliminado» | `DELETE /api/rh/usuarios/{uid}` → `eliminar_usuario` en `rh.py`; migración `0004` | Bote de basura en `Colaboradores.jsx` |
@@ -94,7 +94,8 @@ Conexión con el modelo (Azure OpenAI o Gemini): `backend/app/ia.py`. Nombres de
 
 | Función | Por qué se pospone |
 |---|---|
-| Activar Azure OpenAI y Microsoft Entra ID con la cuenta de PluriOne | Requieren una suscripción de Azure de la organización; el código ya está listo (ver README) |
+| Activar Azure OpenAI con la cuenta de PluriOne | Requiere una suscripción de Azure de la organización; el código ya está listo (ver README). Mientras tanto se usa Gemini |
+| Registrar Entra ID en el directorio de PluriOne | Ya funciona con un directorio de prueba; para producción, TI de la empresa registra la aplicación y cambia dos datos del `.env` |
 | Intento de recuperación automático tras una conversación dirigida con el Tutor | El MVP resuelve el caso con el intento extra que concede el responsable |
 | Botón para conceder intentos desde la interfaz de RH | Hoy lo hace el responsable; RH ya puede vía API |
 | Historial de versiones de documentos | En el MVP, volver a subir reemplaza el archivo anterior |
@@ -125,6 +126,7 @@ Sirve para revisar el MVP a mano, de principio a fin. Toma unos 20 minutos.
 - Levanta el proyecto como dice el [README](../README.md) (con Docker o sin Docker) y abre http://localhost:5173.
 - La única cuenta con contraseña es la de **RH**: su correo y contraseña son `ADMIN_CORREO` y `ADMIN_PASSWORD` de `backend/.env`. Las personas de ejemplo (Mariana López, Luis Ramírez, etc.) **no tienen contraseña**; solo sirven para llenar el panel. Por eso, en este recorrido se crean un supervisor y un colaborador nuevos.
 - Para los agentes de IA, `backend/.env` debe tener los datos de Gemini o de Azure OpenAI ("Configurar la IA" en el README). Sin ellos, la plataforma funciona, pero cada agente muestra el aviso "La IA no está configurada".
+- **Opcional, entrar con Microsoft:** si `backend/.env` tiene `ENTRA_TENANT_ID` y `ENTRA_CLIENT_ID`, en cualquier paso se puede usar **Continuar con Microsoft** con una cuenta del directorio que RH haya dado de alta con el mismo correo. Microsoft pide elegir la cuenta y la contraseña cada vez.
 - Sin SMTP configurado, los correos no se envían: se guardan en `backend/correos_enviados/` y no hacen falta para el recorrido, porque la contraseña temporal también aparece en pantalla.
 
 ### Paso 1. RH crea a un supervisor
