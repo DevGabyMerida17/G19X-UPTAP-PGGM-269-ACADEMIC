@@ -20,7 +20,7 @@ Proyecto de estadía para **PluriOne S.A. de C.V. (Develop Talent & Technology)*
 | Modelos de lenguaje | Azure OpenAI Service (principal) y Google Gemini (alternativa, la que se usa ahora) | `backend/app/ia.py` |
 | Base de datos | PostgreSQL (SQLAlchemy) con migraciones de Alembic | `backend/app/models.py`, `backend/migraciones/` |
 | Caché / estado | Redis: sesiones, enlaces de un solo uso, historial del chat, límite de peticiones y pub/sub | `backend/app/cache.py` |
-| Autenticación | Correo con contraseña y Microsoft Entra ID (MSAL, listo para activarse) | `backend/app/seguridad.py`, `frontend/src/paginas/Acceso.jsx` |
+| Autenticación | Correo con contraseña y Microsoft Entra ID (MSAL) | `backend/app/seguridad.py`, `frontend/src/microsoft.js`, `frontend/src/paginas/Acceso.jsx` |
 | Correo | SMTP (Microsoft 365 u otro); Mailpit para pruebas | `backend/app/correo.py` |
 | CI/CD | GitHub Actions | `.github/workflows/ci.yml` |
 | Contenedores | Docker + Docker Compose | `docker-compose.yml`, `*/Dockerfile` |
@@ -28,14 +28,12 @@ Proyecto de estadía para **PluriOne S.A. de C.V. (Develop Talent & Technology)*
 
 ## Estado de Azure OpenAI y Microsoft Entra ID
 
-Las dos integraciones con Microsoft están **programadas y probadas**, pero necesitan datos que solo entrega una cuenta de Azure de la organización. No fue posible obtenerlos con una cuenta personal ni de estudiante: Azure for Students rechazó la cuenta ("No tiene acceso") y Entra ID exige un directorio organizacional para registrar aplicaciones.
-
-| Integración | Estado | Qué falta para activarla |
+| Integración | Estado | Qué falta |
 |---|---|---|
-| **Azure OpenAI** | Programada (`AzureChatOpenAI`). Mientras tanto, los agentes funcionan con **Google Gemini**. | Poner `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` y `AZURE_OPENAI_DEPLOYMENT` en `backend/.env`. Si están, se usa Azure en lugar de Gemini, sin cambiar código. |
-| **Microsoft Entra ID** (botón "Continuar con Microsoft") | Programado: MSAL en el navegador, validación del token en el backend y prueba automática. Mientras no se configure, el botón avisa que todavía no está habilitado. | Que TI de PluriOne registre la aplicación y entregue `ENTRA_TENANT_ID` y `ENTRA_CLIENT_ID` (ver [Configurar Microsoft Entra ID](#configurar-microsoft-entra-id)). |
+| **Microsoft Entra ID** (botón "Continuar con Microsoft") | **Funciona.** Se configuró y probó con un directorio de Entra propio: Microsoft pide elegir la cuenta y la contraseña en cada inicio de sesión, y el backend valida el token (firma, audiencia y emisor). Si no se configura, el botón avisa que todavía no está habilitado. | Para producción, que TI de PluriOne registre la aplicación en el directorio de la empresa y cambie `ENTRA_TENANT_ID` y `ENTRA_CLIENT_ID` (ver [Configurar Microsoft Entra ID](#configurar-microsoft-entra-id)). |
+| **Azure OpenAI** | **Pendiente.** Programada (`AzureChatOpenAI`); mientras tanto, los agentes funcionan con **Google Gemini**. No fue posible obtener una suscripción: Azure for Students rechazó la cuenta ("No tiene acceso"). | Poner `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY` y `AZURE_OPENAI_DEPLOYMENT` en `backend/.env`. Si están, se usa Azure en lugar de Gemini, sin cambiar código. |
 
-Como la capa de agentes usa LangChain, cambiar de proveedor de IA no toca a los agentes: solo cambia la conexión en `backend/app/ia.py`. Mientras no se activen estas integraciones, la plataforma funciona completa con correo y contraseña y con Gemini.
+Como la capa de agentes usa LangChain, cambiar de proveedor de IA no toca a los agentes: solo cambia la conexión en `backend/app/ia.py`.
 
 ## Cuentas y acceso
 
@@ -47,6 +45,7 @@ Como la capa de agentes usa LangChain, cambiar de proveedor de IA no toca a los 
 - **Roles y permisos:** los roles (colaborador, supervisor, RH) y lo que puede hacer cada uno están en las tablas `roles`, `permisos` y `rol_permisos`, no en el código. Cada ruta pide un permiso (lista en `backend/app/permisos.py`); para dar o quitar uno a un rol se agrega o borra su fila en `rol_permisos`. `GET /api/rh/roles` muestra el catálogo.
 - **Responsables:** cada colaborador tiene un supervisor responsable que RH asigna o cambia. Cada supervisor ve solo a las personas que tiene asignadas.
 - **Escalamiento:** si un colaborador agota sus intentos en una evaluación, aparece primero en "Mi equipo" de su responsable con la etiqueta "Agotó intentos", y el responsable puede concederle un intento más.
+- **Foto de perfil:** cada persona sube la suya dando clic en su avatar (arriba a la derecha): JPG o PNG de máximo 2 MB. Se guarda en `backend/uploads/fotos/`, que no se sube a GitHub.
 - **Primera cuenta de RH:** se crea al arrancar con `ADMIN_CORREO` del archivo `.env`. Si no pones `ADMIN_PASSWORD`, le llega el correo de invitación.
 
 ## Agentes de IA
@@ -166,14 +165,14 @@ Con Microsoft 365 usa `SMTP_HOST=smtp.office365.com`, `SMTP_PORT=587` y `SMTP_ST
 
 ## Configurar Microsoft Entra ID
 
-El botón **Continuar con Microsoft** ya está programado. Para que funcione solo faltan dos datos en `backend/.env`:
+El botón **Continuar con Microsoft** solo necesita dos datos en `backend/.env`:
 
 ```
 ENTRA_TENANT_ID=
 ENTRA_CLIENT_ID=
 ```
 
-Esos datos salen de registrar la aplicación en el Entra ID **de la organización** (PluriOne). Con una cuenta personal (Outlook, Hotmail o Gmail) no se puede, porque Microsoft exige un directorio organizacional. Lo hace alguien de TI con permisos de administrador:
+Esos datos salen de registrar la aplicación en un directorio de Entra ID. En producción es el **de PluriOne** y lo registra alguien de TI con permisos de administrador. Para desarrollo o una demostración sirve un directorio propio y gratuito; así se probó este proyecto. Los pasos son los mismos:
 
 1. Entra a https://entra.microsoft.com → **Aplicaciones → Registros de aplicaciones → Nuevo registro**.
 2. **Nombre:** `Onboarding PluriOne`. **Tipos de cuenta compatibles:** "Solo las cuentas de este directorio organizativo".
@@ -183,8 +182,9 @@ Esos datos salen de registrar la aplicación en el Entra ID **de la organizació
 
 Quién puede entrar con Microsoft:
 
-- Solo cuentas de Microsoft de la organización (por ejemplo `nombre@plurione.com.mx`).
+- Solo cuentas de Microsoft del directorio (por ejemplo `nombre@plurione.com.mx`). Una cuenta personal (Outlook o Hotmail) puede entrar si se invita al directorio como usuario externo (ver los errores comunes).
 - Solo si RH ya dio de alta a la persona en la plataforma **con ese mismo correo**. Si no, el botón le dice que su cuenta no está registrada.
+- Microsoft pide **elegir la cuenta y escribir la contraseña** en cada inicio de sesión, aunque recuerde la anterior. Al dar "Salir" se borra lo que la plataforma guardó de Microsoft en el navegador.
 - Si el nombre que registró RH no es válido (por ejemplo, solo números), se toma el nombre de su cuenta de Microsoft.
 
 Errores comunes al configurarlo:
@@ -243,6 +243,6 @@ Las pruebas usan SQLite, un Redis simulado y un modelo falso para el agente, as�
 
 ## Pendientes antes de producción
 
-- **Azure OpenAI y Microsoft Entra ID:** activarlos con la cuenta de Azure de PluriOne (ver [Estado de Azure OpenAI y Microsoft Entra ID](#estado-de-azure-openai-y-microsoft-entra-id)).
+- **Azure OpenAI:** activarlo con la suscripción de Azure de PluriOne. **Microsoft Entra ID:** registrar la aplicación en el directorio de PluriOne, porque hoy usa un directorio de prueba (ver [Estado de Azure OpenAI y Microsoft Entra ID](#estado-de-azure-openai-y-microsoft-entra-id)).
 - **Contenido de ejemplo:** los documentos de `backend/conocimiento/` son de ejemplo y hay que reemplazarlos con la información oficial de RH.
 - **Integración con HRIS:** la sincronización con el sistema de RH de la empresa todavía no está implementada.
