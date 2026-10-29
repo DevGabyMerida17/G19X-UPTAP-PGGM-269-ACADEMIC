@@ -2,6 +2,14 @@
 
 Proyecto de estadía para **PluriOne S.A. de C.V. (Develop Talent & Technology)**. Es una plataforma web que automatiza y personaliza la incorporación de nuevos colaboradores.
 
+## Documentos del proyecto
+
+| Documento | Qué contiene |
+|---|---|
+| [`PRD.md`](PRD.md) | Requisitos del producto: objetivos, usuarios, los 5 agentes, reglas de intentos y escalamiento, roles y fases. |
+| [`docs/MVP.md`](docs/MVP.md) | Alcance del MVP: dónde está programada cada función (backend y frontend), qué queda para la Fase 2, criterios de aceptación y un [recorrido de prueba paso a paso](docs/MVP.md#4-recorrido-de-prueba). |
+| `README.md` (este archivo) | Instalación, configuración y uso de IA. |
+
 ## Tecnologías
 
 | Componente | Tecnología | Dónde está |
@@ -35,6 +43,7 @@ Como la capa de agentes usa LangChain, cambiar de proveedor de IA no toca a los 
 - Al darla de alta, el sistema genera una **contraseña temporal**: RH la ve en pantalla y también se le envía a la persona por correo. En su primer inicio de sesión la plataforma le pide crear su propia contraseña. RH puede generar una nueva contraseña temporal cuando haga falta.
 - **¿Olvidaste tu contraseña?:** desde la pantalla de inicio llega un correo con un enlace que vence en 30 minutos y sirve una sola vez. Al cambiar la contraseña se cierran las sesiones abiertas.
 - **Bajas:** RH puede dar de baja (y reactivar) a cualquier persona. Una cuenta dada de baja no puede entrar y ve el aviso "Tu cuenta fue dada de baja y está inactiva". Si tenía la sesión abierta, el aviso aparece en su siguiente acción.
+- **Eliminar:** el bote de basura en **Personal** borra a la persona y todo su registro, y no se puede deshacer. Los comentarios que escribió sobre otros colaboradores se conservan como "Usuario eliminado". Si era responsable, sus colaboradores quedan sin asignar.
 - **Roles y permisos:** los roles (colaborador, supervisor, RH) y lo que puede hacer cada uno están en las tablas `roles`, `permisos` y `rol_permisos`, no en el código. Cada ruta pide un permiso (lista en `backend/app/permisos.py`); para dar o quitar uno a un rol se agrega o borra su fila en `rol_permisos`. `GET /api/rh/roles` muestra el catálogo.
 - **Responsables:** cada colaborador tiene un supervisor responsable que RH asigna o cambia. Cada supervisor ve solo a las personas que tiene asignadas.
 - **Escalamiento:** si un colaborador agota sus intentos en una evaluación, aparece primero en "Mi equipo" de su responsable con la etiqueta "Agotó intentos", y el responsable puede concederle un intento más.
