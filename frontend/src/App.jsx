@@ -1,11 +1,11 @@
 import {
   BookOpen, ChartPie, ClipboardCheck, FileText, FolderCheck, House, Layers, LayoutDashboard, Library, ListChecks,
-  Bot, LogOut, MessageCircle, Users,
+  Bot, Camera, LogOut, MessageCircle, Trash2, Users,
 } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { api, onSesionExpirada, sesion } from "./api.js";
 import { olvidarCuenta } from "./microsoft.js";
-import { Barra, BotonTema, Cargando, ErrorCaja, Marca, iniciales, useApi } from "./ui.jsx";
+import { Avatar, Barra, BotonTema, Cargando, ErrorCaja, Marca, olvidarFoto, useApi, useAviso } from "./ui.jsx";
 import Acceso from "./paginas/Acceso.jsx";
 import NuevaPassword from "./paginas/NuevaPassword.jsx";
 import CambioObligatorio from "./paginas/CambioObligatorio.jsx";
@@ -110,12 +110,70 @@ export default function App() {
   if (usuario.debe_cambiar_password) return <CambioObligatorio usuario={usuario} alTerminar={entrar} salir={salir} />;
   return (
     <AppCtx.Provider value={{ usuario, config }}>
-      <Plataforma usuario={usuario} salir={salir} />
+      <Plataforma usuario={usuario} salir={salir} alCambiarUsuario={setUsuario} />
     </AppCtx.Provider>
   );
 }
 
-function Plataforma({ usuario, salir }) {
+/** Avatar del encabezado: al darle clic, la persona sube o quita su foto de perfil. */
+function MiFoto({ usuario, alCambiar }) {
+  const avisar = useAviso();
+  const [abierto, setAbierto] = useState(false);
+  const [version, setVersion] = useState(0);
+  const [ocupado, setOcupado] = useState(false);
+  const caja = useRef(null);
+  const selector = useRef(null);
+
+  useEffect(() => {
+    if (!abierto) return undefined;
+    const cerrar = (e) => { if (!caja.current?.contains(e.target)) setAbierto(false); };
+    const tecla = (e) => { if (e.key === "Escape") setAbierto(false); };
+    document.addEventListener("mousedown", cerrar);
+    document.addEventListener("keydown", tecla);
+    return () => { document.removeEventListener("mousedown", cerrar); document.removeEventListener("keydown", tecla); };
+  }, [abierto]);
+
+  const guardar = async (accion, aviso) => {
+    setOcupado(true);
+    try {
+      const u = await accion();
+      olvidarFoto(usuario.id);
+      setVersion((v) => v + 1);
+      alCambiar((antes) => ({ ...antes, tiene_foto: u.tiene_foto }));
+      avisar(aviso);
+    } catch (e) { avisar(e.message); } finally { setOcupado(false); setAbierto(false); }
+  };
+  const subir = (e) => {
+    const archivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!archivo) return;
+    if (!["image/jpeg", "image/png"].includes(archivo.type)) { avisar("La foto debe ser una imagen JPG o PNG."); return; }
+    if (archivo.size > 2 * 1024 * 1024) { avisar("La foto supera 2 MB."); return; }
+    guardar(() => api("/api/auth/yo/foto", { metodo: "POST", archivo }), "Foto de perfil actualizada");
+  };
+
+  return (
+    <div className="mi-foto" ref={caja}>
+      <button type="button" className="avatar" aria-haspopup="menu" aria-expanded={abierto} title="Foto de perfil"
+        aria-label="Cambiar tu foto de perfil" onClick={() => setAbierto(!abierto)}>
+        <Avatar u={usuario} className="" version={version} style={{ display: "contents" }} />
+      </button>
+      <input ref={selector} type="file" accept="image/jpeg,image/png" hidden onChange={subir} />
+      {abierto && (
+        <div className="mi-foto-menu" role="menu">
+          <button role="menuitem" disabled={ocupado} onClick={() => selector.current.click()}>
+            <Camera size={16} strokeWidth={1.8} />{usuario.tiene_foto ? "Cambiar foto" : "Subir foto"}</button>
+          {usuario.tiene_foto && (
+            <button role="menuitem" disabled={ocupado} onClick={() => guardar(() => api("/api/auth/yo/foto", { metodo: "DELETE" }), "Foto quitada")}>
+              <Trash2 size={16} strokeWidth={1.8} />Quitar foto</button>)}
+          <span className="small muted">JPG o PNG, máximo 2 MB.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Plataforma({ usuario, salir, alCambiarUsuario }) {
   const menu = MENUS[usuario.rol];
   const [pagina, setPagina] = useState(menu.paginas[0][0]);
   const [params, setParams] = useState({});
@@ -139,7 +197,7 @@ function Plataforma({ usuario, salir }) {
         <div className="who">
           <div className="name small" style={{ textAlign: "right" }}><b>{nombreVisible(usuario.nombre)}</b><div className="muted">{menu.nombre}</div></div>
           <BotonTema />
-          <div className="avatar">{iniciales(usuario.nombre)}</div>
+          <MiFoto usuario={usuario} alCambiar={alCambiarUsuario} />
           <button className="btn ghost sm" onClick={salir}><LogOut size={15} strokeWidth={1.8} />Salir</button>
         </div>
       </header>

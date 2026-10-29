@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Box, Check, Circle, Lock, Moon, Play, Sun, UserRound } from "lucide-react";
-import { api, wsUrl } from "./api.js";
+import { api, obtenerArchivo, wsUrl } from "./api.js";
 import { nombreDePila } from "./validaciones.js";
 
 /* ---------- Tema claro / oscuro ---------- */
@@ -154,6 +154,26 @@ export function Vista({ estado, children }) {
 export const iniciales = (n = "") => nombreDePila(n)
   ? n.trim().split(/\s+/).map((x) => x[0]).join("").slice(0, 2).toUpperCase()
   : <UserRound size={16} strokeWidth={1.8} aria-hidden="true" />;
+
+/* ---------- Foto de perfil ---------- */
+const fotos = new Map(); // id de la persona -> promesa con la dirección de su foto (se pide una sola vez)
+export const olvidarFoto = (id) => fotos.delete(id);
+
+/** Foto de la persona o, si no tiene, sus iniciales. */
+export function Avatar({ u, className = "avatar", style, version = 0 }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    if (!u?.id || !u.tiene_foto) { setUrl(null); return undefined; }
+    if (!fotos.has(u.id)) {
+      fotos.set(u.id, obtenerArchivo(`/api/usuarios/${u.id}/foto`)
+        .then((b) => URL.createObjectURL(b)).catch(() => { fotos.delete(u.id); return null; }));
+    }
+    let vigente = true;
+    fotos.get(u.id).then((x) => { if (vigente) setUrl(x); });
+    return () => { vigente = false; };
+  }, [u?.id, u?.tiene_foto, version]);
+  return <div className={className} style={style}>{url ? <img src={url} alt={`Foto de ${u.nombre}`} /> : iniciales(u?.nombre)}</div>;
+}
 
 export function fecha(iso, opciones = { day: "numeric", month: "short" }) {
   if (!iso) return "";

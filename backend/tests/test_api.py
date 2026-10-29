@@ -93,6 +93,27 @@ def test_rh_no_se_da_de_baja_a_si_mismo(client, admin):
 
 
 
+
+PNG_1X1 = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+           b"\x00\x00\x00\rIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82")
+
+
+def test_foto_de_perfil(client, admin, crear):
+    h, uid = crear()
+    assert client.get("/api/auth/yo", headers=h).json()["tiene_foto"] is False
+    # Solo imágenes reales: un archivo de texto renombrado a .png se rechaza
+    r = client.post("/api/auth/yo/foto", headers=h, files={"archivo": ("foto.png", b"\x89PNG\r\n\x1a\n" + b"0" * (2 * 1024 * 1024))})
+    assert r.status_code == 400 and "2 MB" in r.json()["detail"]
+
+    assert client.post("/api/auth/yo/foto", headers=h, files={"archivo": ("foto.png", PNG_1X1)}).json()["tiene_foto"]
+    assert client.get(f"/api/usuarios/{uid}/foto", headers=admin).content == PNG_1X1  # RH la ve
+    assert client.get(f"/api/usuarios/{uid}/foto").status_code == 401  # sin sesión, no
+    fila = next(c for c in client.get("/api/rh/colaboradores", headers=admin).json() if c["id"] == uid)
+    assert fila["tiene_foto"] is True
+
+    assert client.delete("/api/auth/yo/foto", headers=h).json()["tiene_foto"] is False
+    assert client.get(f"/api/usuarios/{uid}/foto", headers=h).status_code == 404
+
 def test_rh_elimina_a_una_persona(client, admin, crear):
     sup_h, sid = crear(rol="supervisor")
     h, uid = crear(supervisor_id=sid)

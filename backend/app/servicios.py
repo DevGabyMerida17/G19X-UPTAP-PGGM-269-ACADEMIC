@@ -118,7 +118,7 @@ def ficha(db: Session, u: Usuario) -> dict:
         "fecha_ingreso": u.fecha_ingreso.isoformat(), "activo": u.activo, "programa_id": u.programa_id,
         "programa": u.programa.titulo if u.programa else None, "avance": p, "estado": estado_onboarding(u, p),
         "supervisor_id": u.supervisor_id, "supervisor": u.supervisor.nombre if u.supervisor else None,
-        "pendiente_activacion": u.pendiente_activacion,
+        "pendiente_activacion": u.pendiente_activacion, "tiene_foto": u.tiene_foto,
     }
 
 

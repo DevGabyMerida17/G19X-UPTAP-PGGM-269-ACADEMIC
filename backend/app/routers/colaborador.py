@@ -38,7 +38,8 @@ def resumen(u: Usuario = Depends(colaborador), db: Session = Depends(get_db)):
                                .order_by(Comentario.fecha.desc()).limit(5))
     return {
         **ficha(db, u),
-        "supervisor": {"nombre": supervisor.nombre, "puesto": supervisor.puesto} if supervisor else None,
+        "supervisor": {"id": supervisor.id, "nombre": supervisor.nombre, "puesto": supervisor.puesto,
+                       "tiene_foto": supervisor.tiene_foto} if supervisor else None,
         "tareas": tareas_de(db, u),
         "modulos": estado_modulos(db, u),
         "documentos": documentos_de(db, u),

@@ -116,7 +116,7 @@ def _a_cargo(db: Session, sid: int) -> int:
 
 def _personal_json(db: Session, u: Usuario) -> dict:
     return {"id": u.id, "nombre": u.nombre, "correo": u.correo, "rol": u.rol, "puesto": u.puesto, "area": u.area,
-            "activo": u.activo, "pendiente_activacion": u.pendiente_activacion,
+            "activo": u.activo, "pendiente_activacion": u.pendiente_activacion, "tiene_foto": u.tiene_foto,
             "a_cargo": _a_cargo(db, u.id) if u.rol == "supervisor" else None}
 
 
@@ -242,7 +242,7 @@ def eliminar_usuario(uid: int, yo: Usuario = Depends(usuario_actual), db: Sessio
     if u.id == yo.id:
         raise HTTPException(400, "No puedes eliminar tu propia cuenta.")
     archivos = [Path(d.archivo_ruta) for d in db.scalars(select(DocumentoColaborador).where(DocumentoColaborador.usuario_id == uid))
-                if d.archivo_ruta]
+                if d.archivo_ruta] + ([Path(u.foto_ruta)] if u.foto_ruta else [])
     for c in db.scalars(select(Usuario).where(Usuario.supervisor_id == uid)):  # sus colaboradores quedan sin responsable
         c.supervisor_id = None
     for tabla in (ProgresoModulo, Evaluacion, TareaColaborador, DocumentoColaborador, ConsultaTutor):

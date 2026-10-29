@@ -61,6 +61,11 @@ class Usuario(Base):
     # True mientras use la contraseña temporal que le dio RH: debe crear una propia al entrar.
     debe_cambiar_password: Mapped[bool] = mapped_column(Boolean, default=False)
     supervisor: Mapped["Usuario | None"] = relationship(remote_side="Usuario.id")
+    foto_ruta: Mapped[str] = mapped_column(String(400), default="")  # foto de perfil que sube la persona
+
+    @property
+    def tiene_foto(self) -> bool:
+        return bool(self.foto_ruta)
 
     @property
     def pendiente_activacion(self) -> bool:

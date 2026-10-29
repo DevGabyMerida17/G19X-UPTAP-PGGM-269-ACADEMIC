@@ -4,7 +4,11 @@ Las cuentas las crea Recursos Humanos; nadie puede registrarse por su cuenta.
 """
 import re
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,7 +31,7 @@ MENSAJE_OLVIDE = ("Si el correo está registrado y la cuenta está activa, te en
 def perfil(u: Usuario) -> dict:
     return {"id": u.id, "nombre": u.nombre, "correo": u.correo, "rol": u.rol, "puesto": u.puesto,
             "area": u.area, "fecha_ingreso": u.fecha_ingreso.isoformat(),
-            "debe_cambiar_password": u.debe_cambiar_password}
+            "debe_cambiar_password": u.debe_cambiar_password, "tiene_foto": u.tiene_foto}
 
 
 def validar_password(v: str) -> str:
@@ -190,6 +194,54 @@ def cambiar_password(datos: CambioPassword, authorization: str | None = Header(N
 @router.get("/auth/yo")
 def yo(u: Usuario = Depends(usuario_actual)):
     return perfil(u)
+
+
+# ---------- Foto de perfil ----------
+FOTO_MAX_MB = 2
+# Se revisa el contenido real del archivo, no solo su extensión.
+FIRMAS_FOTO = {b"\xff\xd8\xff": ".jpg", b"\x89PNG\r\n\x1a\n": ".png"}
+
+
+def borrar_foto(u: Usuario) -> None:
+    if u.foto_ruta:
+        Path(u.foto_ruta).unlink(missing_ok=True)
+        u.foto_ruta = ""
+
+
+@router.post("/auth/yo/foto")
+async def subir_foto(archivo: UploadFile = File(...), u: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
+    contenido = await archivo.read(FOTO_MAX_MB * 1024 * 1024 + 1)
+    if len(contenido) > FOTO_MAX_MB * 1024 * 1024:
+        raise HTTPException(400, f"La foto supera {FOTO_MAX_MB} MB.")
+    ext = next((e for firma, e in FIRMAS_FOTO.items() if contenido.startswith(firma)), None)
+    if not ext:
+        raise HTTPException(400, "La foto debe ser una imagen JPG o PNG.")
+    carpeta = config.UPLOADS_DIR / "fotos"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    ruta = carpeta / f"{u.id}-{uuid.uuid4().hex}{ext}"
+    ruta.write_bytes(contenido)
+    borrar_foto(u)
+    u.foto_ruta = str(ruta)
+    db.commit()
+    cache.publicar("colaborador", id=u.id)
+    return perfil(u)
+
+
+@router.delete("/auth/yo/foto")
+def quitar_foto(u: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
+    borrar_foto(u)
+    db.commit()
+    cache.publicar("colaborador", id=u.id)
+    return perfil(u)
+
+
+@router.get("/usuarios/{uid}/foto")
+def ver_foto(uid: int, _: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
+    """Cualquier persona con sesión ve la foto de sus compañeros, como en el directorio de la empresa."""
+    u = db.get(Usuario, uid)
+    if not u or not u.foto_ruta or not Path(u.foto_ruta).is_file():
+        raise HTTPException(404, "Sin foto.")
+    return FileResponse(u.foto_ruta, headers={"Cache-Control": "private, max-age=300"})
 
 
 @router.post("/auth/salir")

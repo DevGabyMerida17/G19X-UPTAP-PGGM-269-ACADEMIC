@@ -3,7 +3,7 @@ import { Check, Copy, Pencil, Trash2 } from "lucide-react";
 import { useApp } from "../../App.jsx";
 import { api } from "../../api.js";
 import { errorCorreo, errorNombre, propsCorreo, propsNombre } from "../../validaciones.js";
-import { Barra, Chip, Vista, fecha, iniciales, tonoBarra, useAccion, useApi, useEventos } from "../../ui.jsx";
+import { Avatar, Barra, Chip, Vista, fecha, tonoBarra, useAccion, useApi, useEventos } from "../../ui.jsx";
 
 const ROLES = { colaborador: "Colaborador", supervisor: "Supervisor / Responsable", rh: "Recursos Humanos" };
 const sinAcentos = (t = "") => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -143,7 +143,7 @@ export default function Colaboradores() {
                   <thead><tr><th>Nombre</th><th>Responsable</th><th>Avance</th><th>Estado</th><th></th></tr></thead>
                   <tbody>{cs.map((c) => (
                     <tr key={c.id}>
-                      <td><div className="row"><div className="avatar" style={{ width: 30, height: 30, fontSize: 11 }}>{iniciales(c.nombre)}</div>
+                      <td><div className="row"><Avatar u={c} style={{ width: 30, height: 30, fontSize: 11 }} />
                         <div><NombreEditable u={c} alGuardar={recargar} /><div className="small muted">{c.puesto} · ingresó {fecha(c.fecha_ingreso)}</div>
                           <div className="small muted">{c.correo}</div></div></div></td>
                       <td>

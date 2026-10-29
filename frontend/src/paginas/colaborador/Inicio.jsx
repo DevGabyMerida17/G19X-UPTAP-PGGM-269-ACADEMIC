@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { BookOpen, ClipboardCheck, FileText, Library, MessageCircle, Target } from "lucide-react";
 import { useApp, useResumen } from "../../App.jsx";
 import { api } from "../../api.js";
-import { Barra, Vista, fecha, iniciales, useAccion } from "../../ui.jsx";
+import { Avatar, Barra, Vista, fecha, useAccion } from "../../ui.jsx";
 import { nombreDePila } from "../../validaciones.js";
 
 const COLORES = { "Día 1": "var(--mint)", "Semana 1": "var(--sky)", "Mes 1": "var(--peach)" };
@@ -137,7 +137,7 @@ export default function Inicio({ ir }) {
                 <h3>Tu supervisor</h3>
                 {d.supervisor ? (
                   <div className="row mt">
-                    <div className="avatar" style={{ background: "var(--sky)", color: "var(--sky-ink)" }}>{iniciales(d.supervisor.nombre)}</div>
+                    <Avatar u={d.supervisor} style={{ background: "var(--sky)", color: "var(--sky-ink)" }} />
                     <div><b>{d.supervisor.nombre}</b><div className="small muted">{d.supervisor.puesto}</div></div>
                   </div>
                 ) : <p className="muted small mt-s">Aún no hay un supervisor registrado en tu área.</p>}

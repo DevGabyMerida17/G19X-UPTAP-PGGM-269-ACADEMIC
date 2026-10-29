@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../../App.jsx";
 import { api } from "../../api.js";
-import { Barra, Chip, MarcaEstado, Vista, fecha, iniciales, tonoBarra, useAccion, useApi, useEventos } from "../../ui.jsx";
+import { Avatar, Barra, Chip, MarcaEstado, Vista, fecha, tonoBarra, useAccion, useApi, useEventos } from "../../ui.jsx";
 
 export default function Equipo() {
   const [seleccion, setSeleccion] = useState(null);
@@ -89,7 +89,7 @@ function Detalle({ id, volver }) {
         {(c) => (
           <>
             <div className="head mt row wrap" style={{ gap: 16 }}>
-              <div className="avatar lg">{iniciales(c.nombre)}</div>
+              <Avatar u={c} className="avatar lg" />
               <div><h1>{c.nombre}</h1><p className="muted">{c.puesto} · Inicio {fecha(c.fecha_ingreso)} · <Chip estado={c.estado} /></p></div>
             </div>
 
