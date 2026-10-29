@@ -2,7 +2,7 @@
 
 **Empresa:** PluriOne S.A. de C.V. (Develop Talent & Technology)
 **Documento:** Product Requirements Document
-**Versión:** 2.0 · Octubre 2026 (alineada con lo construido)
+**Versión:** 2.1 · 29 de octubre de 2026 (alineada con lo construido)
 **Documentos relacionados:** [`README.md`](README.md) (cómo se instala y configura) · [`docs/MVP.md`](docs/MVP.md) (qué entra en la v1 y dónde está en el código) · [`backend/app/models.py`](backend/app/models.py) (modelo de datos)
 
 ---
@@ -32,7 +32,8 @@ La plataforma resuelve esto con **5 agentes de IA** que guían al colaborador de
 El sistema arranca con tres roles: `colaborador`, `supervisor` y `rh`. **No están escritos como reglas fijas en el código:** son datos en las tablas `roles`, `permisos` y `rol_permisos`. Cada ruta del backend pide un permiso (por ejemplo `documentos.revisar`) con `requiere_permiso(...)` (`backend/app/seguridad.py`), y qué rol tiene cada permiso se consulta en la base de datos. Si la empresa reorganiza estas funciones, se ajustan los permisos con datos, sin cambiar código. **Nadie se registra solo:** RH da de alta a todas las personas.
 
 ### 3.1 Colaborador nuevo
-- Iniciar sesión con correo y contraseña (la primera vez, con una contraseña temporal que debe cambiar) o con Microsoft Entra ID cuando esté configurado.
+- Iniciar sesión con correo y contraseña (la primera vez, con una contraseña temporal que debe cambiar) o con su cuenta de Microsoft (Entra ID).
+- Subir, cambiar o quitar su foto de perfil.
 - Ver su ruta de onboarding: tareas por etapa (Día 1, Semana 1, Mes 1), documentos y módulos, con su porcentaje de avance y anillos de progreso por etapa.
 - Subir los documentos requeridos (PDF o imagen, arrastrando el archivo) y ver si fueron validados o rechazados, con el motivo.
 - Leer los módulos de capacitación en orden; cada módulo se desbloquea al terminar el anterior.
@@ -42,6 +43,7 @@ El sistema arranca con tres roles: `colaborador`, `supervisor` y `rh`. **No est�
 
 ### 3.2 Recursos Humanos
 - Dar de alta, editar, dar de baja y reactivar a colaboradores, supervisores y otras cuentas de RH; generar una nueva contraseña temporal; corregir nombres.
+- Eliminar definitivamente a una persona con todo su registro (sección 6.7).
 - Asignar a cada colaborador su programa de onboarding y su supervisor responsable.
 - Crear y editar programas, módulos (con su contenido por secciones), preguntas de evaluación, calificación mínima e intentos permitidos.
 - Revisar documentos con vista previa, y validarlos o rechazarlos con motivo.
@@ -76,7 +78,7 @@ Da seguimiento únicamente a los colaboradores que RH le asignó (`usuarios.supe
 
 El detalle, con la ubicación de cada función en el código, está en [`docs/MVP.md`](docs/MVP.md). Resumen:
 
-- **Dentro:** alta por RH con contraseña temporal, inicio de sesión (correo y Entra ID), ruta con tareas, documentos con revisión, capacitación secuencial, evaluaciones con límite de intentos y escalamiento al responsable, los 5 agentes de IA, panel de RH, seguimiento del supervisor, avisos en tiempo real, Docker y GitHub Actions.
+- **Dentro:** alta por RH con contraseña temporal, inicio de sesión (correo y Entra ID), baja y eliminación de personas, foto de perfil, ruta con tareas, documentos con revisión, capacitación secuencial, evaluaciones con límite de intentos y escalamiento al responsable, los 5 agentes de IA, panel de RH, seguimiento del supervisor, avisos en tiempo real, Docker y GitHub Actions.
 - **Fuera (Fase 2):** ver la sección 12.
 
 ---
@@ -87,8 +89,9 @@ El detalle, con la ubicación de cada función en el código, está en [`docs/MV
 - RH da de alta a la persona; el sistema genera una contraseña temporal que RH ve en pantalla y que se envía por correo. En el primer inicio de sesión se pide crear una contraseña propia.
 - "¿Olvidaste tu contraseña?" envía un enlace de un solo uso que vence en 30 minutos.
 - Una cuenta dada de baja siempre ve el aviso de baja, aunque escriba mal la contraseña.
-- Inicio de sesión con Microsoft Entra ID (MSAL), solo para personas ya dadas de alta con ese correo. Requiere que TI de la empresa registre la aplicación (ver README).
+- Inicio de sesión con Microsoft Entra ID (MSAL), solo para personas ya dadas de alta con ese correo. Microsoft muestra "Elegir una cuenta" y vuelve a pedir la contraseña en cada inicio de sesión, aunque recuerde la cuenta. Si el navegador bloquea la ventana emergente, el inicio de sesión continúa en la misma pestaña. Al salir se borra lo que MSAL guardó en el navegador. Configurado y probado con un directorio de Entra propio; en producción, TI de PluriOne registra la aplicación en el directorio de la empresa (ver README).
 - Validaciones: correo sin espacios, nombre solo con letras y con forma de nombre real.
+- Foto de perfil: cada persona sube la suya desde el avatar del encabezado (JPG o PNG, máximo 2 MB; el backend revisa el contenido real del archivo). Se ve en el encabezado, en Personal de RH, en Mi equipo y en la tarjeta del supervisor del colaborador. Solo la ven personas con sesión iniciada.
 
 ### 6.2 Documentos
 - El colaborador sube cada documento requerido (PDF, JPG o PNG, hasta 5 MB).
@@ -128,6 +131,7 @@ Reglas implementadas:
 - **Tutor de Onboarding:** responde sobre el proceso, la plataforma y las políticas de PluriOne usando RAG (búsqueda BM25) sobre la base de conocimiento que administra RH, y cita las fuentes.
 - **Agente de Conocimiento General:** responde preguntas generales o definiciones sin consultar documentos internos.
 - Un orquestador decide cuál de los dos responde cada pregunta. El chat es en tiempo real (WebSocket) y guarda el historial.
+- El chat abre con un saludo corto con el nombre de pila: "¡Hola, Ana! ¿En qué puedo ayudarte?". Cada respuesta muestra qué agente contestó.
 
 ### 6.6 Seguimiento y panel de RH / supervisor
 - Panel de RH con el avance de todos los procesos, alertas de retraso y temas más consultados al Tutor.
@@ -140,6 +144,7 @@ Reglas implementadas:
 - Dar o quitar un permiso a un rol es agregar o borrar una fila en `rol_permisos`; el alta de personal solo acepta roles del catálogo. `GET /api/rh/roles` muestra el catálogo vigente.
 - Además del permiso, el supervisor solo accede a los colaboradores que tiene asignados.
 - Las sesiones se guardan en Redis y se cierran al dar de baja a la persona o al cambiar su contraseña.
+- **Baja vs. eliminación:** la baja conserva todo el historial y se puede revertir. Eliminar (bote de basura en Personal, con confirmación) borra a la persona y su registro: avance, evaluaciones, documentos con sus archivos, foto, comentarios sobre ella y consultas al Tutor. Los comentarios que escribió sobre otros colaboradores **se conservan** como "Usuario eliminado" (migración `0004`), y si era responsable, sus colaboradores quedan sin asignar. Nadie puede eliminarse a sí mismo.
 
 ---
 
@@ -186,7 +191,8 @@ Interfaz propia (sin plantillas) con colores pastel, modo claro y oscuro, navega
 
 ## 10. Supuestos y dependencias
 
-- Azure OpenAI y Microsoft Entra ID se activan con la cuenta de Azure de PluriOne. Durante el desarrollo no fue posible obtener una suscripción (Azure for Students rechazó la cuenta), por lo que la IA funciona con Google Gemini mediante su API compatible con OpenAI.
+- **Microsoft Entra ID** funciona: se configuró y probó con un directorio de Entra propio (gratuito). Para producción, TI de PluriOne registra la aplicación en el directorio de la empresa y cambia `ENTRA_TENANT_ID` y `ENTRA_CLIENT_ID`.
+- **Azure OpenAI** se activa con la suscripción de Azure de PluriOne. Durante el desarrollo no fue posible obtenerla (Azure for Students rechazó la cuenta), por lo que la IA funciona con Google Gemini mediante su API compatible con OpenAI.
 - RH define los programas de onboarding iniciales.
 - No hay API confirmada de los sistemas de RH: el MVP usa alta manual.
 - Los documentos de `backend/conocimiento/` son de ejemplo; la información oficial de RH los reemplaza o se carga desde la pantalla "Base del Tutor IA".
@@ -197,7 +203,7 @@ Interfaz propia (sin plantillas) con colores pastel, modo claro y oscuro, navega
 
 | Riesgo | Impacto | Mitigación en el MVP |
 |---|---|---|
-| Sin suscripción de Azure durante el desarrollo | No se puede demostrar Azure OpenAI ni Entra ID | Capa de IA desacoplada con LangChain (Gemini como alternativa) y Entra ID listo para configurar |
+| Sin suscripción de Azure durante el desarrollo | No se puede demostrar Azure OpenAI | Capa de IA desacoplada con LangChain (Gemini como alternativa); se activa con tres variables del `.env`, sin cambiar código |
 | Adopción baja de los chatbots | El onboarding se abandona a medio camino | Ruta visual con tareas como respaldo; el chat es un apoyo, no el único camino |
 | Alucinaciones en respuestas de política interna | Información incorrecta a un colaborador nuevo | RAG con fuente controlada y citas; el agente general no responde sobre políticas internas |
 | Límite diario del plan gratuito de Gemini | La IA deja de responder ese día | Mensaje claro de "IA no disponible"; la plataforma sigue funcionando sin IA |
