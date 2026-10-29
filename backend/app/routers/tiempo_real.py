@@ -6,7 +6,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
-from .. import cache, config, ia, nombres_agentes
+from .. import cache, config, ia
 from ..validaciones import nombre_de_pila
 from ..db import SessionLocal
 from ..models import ConsultaTutor, Usuario
@@ -17,9 +17,7 @@ from ..servicios import progreso_para_tutor
 router = APIRouter(tags=["tiempo real"])
 log = logging.getLogger("tutor")
 
-SALUDO = ("{saludo} Aquí te atienden el " + nombres_agentes.TUTOR_ONBOARDING + ", que te guía en tu proceso, te "
-          "explica la plataforma y resuelve dudas sobre las políticas de PluriOne, y el "
-          + nombres_agentes.CONOCIMIENTO_GENERAL + ", que responde cualquier otra pregunta o definición.")
+SALUDO = "{saludo} ¿En qué puedo ayudarte?"
 
 
 def _autenticar(token: str | None, permiso: str) -> Usuario | None:

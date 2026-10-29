@@ -388,12 +388,14 @@ def test_agentes_no_usan_numeros_como_nombre(client, admin, crear):
 
     h, uid = crear(nombre="23344")
     saludo = client.get("/api/tutor/historial", headers=h).json()["mensajes"][0]["texto"]
-    assert saludo.startswith("¡Hola!") and "23344" not in saludo
+    assert saludo == "¡Hola! ¿En qué puedo ayudarte?"
 
     # RH corrige el nombre (con las mismas reglas) y el saludo ya usa el nombre real
     assert client.patch(f"/api/rh/usuarios/{uid}", headers=admin, json={"nombre": "Jesús 23"}).status_code == 422
     r = client.patch(f"/api/rh/usuarios/{uid}", headers=admin, json={"nombre": "jesús rizo"})
     assert r.json()["nombre"] == "Jesús Rizo"
+    saludo = client.get("/api/tutor/historial", headers=h).json()["mensajes"][0]["texto"]
+    assert saludo == "¡Hola, Jesús! ¿En qué puedo ayudarte?"
 
 
 def test_microsoft_completa_el_nombre_si_no_es_valido(client, crear, monkeypatch):
