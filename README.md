@@ -187,6 +187,16 @@ Quién puede entrar con Microsoft:
 - Solo si RH ya dio de alta a la persona en la plataforma **con ese mismo correo**. Si no, el botón le dice que su cuenta no está registrada.
 - Si el nombre que registró RH no es válido (por ejemplo, solo números), se toma el nombre de su cuenta de Microsoft.
 
+Errores comunes al configurarlo:
+
+| Error | Solución |
+|---|---|
+| `AADSTS50020` (la cuenta "does not exist in tenant") | La cuenta no pertenece al directorio. Invítala en Entra: **Usuarios → Nuevo usuario → Invitar a usuario externo**, y acepta la invitación desde ese correo. |
+| `AADSTS9002326` ("only for the 'Single-Page Application' client-type") | La dirección quedó como plataforma "Web". En **Autenticación** bórrala de "Web" y agrégala en **Aplicación de página única**. En el **Manifiesto** debe estar en `spa.redirectUris`. |
+| `AADSTS50011` (redirect URI) | Falta la dirección de la página en **Autenticación → Aplicación de página única**. |
+
+Si el navegador bloquea la ventana emergente de Microsoft, el inicio de sesión continúa en la misma pestaña y al terminar regresa a la plataforma.
+
 Mientras no estén los dos datos, el botón aparece normal y, al darle clic, avisa: "El inicio de sesión con Microsoft todavía no está habilitado. Usa tu correo y contraseña."
 
 ## Correr el proyecto en otra computadora
