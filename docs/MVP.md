@@ -4,7 +4,7 @@
 **Versión:** 1.0 · Octubre 2026
 **Relacionado:** [`PRD.md`](../PRD.md) (requisitos) · [`README.md`](../README.md) (instalación y configuración)
 
-El MVP es la versión mínima que cubre el ciclo completo de incorporación: **RH da de alta → el colaborador completa su ruta con apoyo de los agentes → el supervisor y RH dan seguimiento.** Todo lo que está en "Entra en el MVP" funciona hoy y tiene pruebas automáticas en `backend/tests/`.
+El MVP es la versión mínima que cubre el ciclo completo de incorporación: **RH da de alta → el colaborador completa su ruta con apoyo de los agentes → el supervisor y RH dan seguimiento.** Todo lo que está en "Entra en el MVP" funciona hoy y tiene pruebas automáticas en `backend/tests/`. Para comprobarlo a mano, sigue el [recorrido de prueba](#4-recorrido-de-prueba).
 
 ---
 
@@ -20,6 +20,7 @@ El MVP es la versión mínima que cubre el ciclo completo de incorporación: **R
 | Inicio de sesión con Microsoft Entra ID (listo para configurar) | `POST /api/auth/microsoft`; validación del token en `validar_token_entra` (`backend/app/seguridad.py`) | `Acceso.jsx` (MSAL) |
 | ¿Olvidaste tu contraseña? con enlace de un solo uso | `POST /api/auth/olvide` y `POST /api/auth/nueva-password` | `Acceso.jsx`, `frontend/src/paginas/NuevaPassword.jsx` |
 | Bajas y reactivación; aviso de cuenta dada de baja | `PATCH /api/rh/usuarios/{uid}`; `error_cuenta_inactiva` en `seguridad.py` | `Colaboradores.jsx` |
+| Eliminar a una persona con su registro; lo que escribió sobre otros se conserva como «Usuario eliminado» | `DELETE /api/rh/usuarios/{uid}` → `eliminar_usuario` en `rh.py`; migración `0004` | Bote de basura en `Colaboradores.jsx` |
 | Nueva contraseña temporal y corrección de nombre | `POST /api/rh/usuarios/{uid}/password-temporal`, `PATCH /api/rh/usuarios/{uid}` | `Colaboradores.jsx` |
 | Validación de correo y nombre | `backend/app/validaciones.py` | `frontend/src/validaciones.js` |
 | Sesiones y límite de intentos | `backend/app/seguridad.py`, `backend/app/cache.py` (Redis) | `frontend/src/api.js` |
@@ -112,3 +113,77 @@ Conexión con el modelo (Azure OpenAI o Gemini): `backend/app/ia.py`. Nombres de
 5. El Tutor responde preguntas sobre PluriOne citando fuentes y también preguntas generales.
 6. RH consulta el panel y al Asistente de RH.
 7. `pytest` pasa y GitHub Actions compila el frontend y las imágenes de Docker.
+
+---
+
+## 4. Recorrido de prueba
+
+Sirve para revisar el MVP a mano, de principio a fin. Toma unos 20 minutos.
+
+**Antes de empezar**
+- Levanta el proyecto como dice el [README](../README.md) (con Docker o sin Docker) y abre http://localhost:5173.
+- La única cuenta con contraseña es la de **RH**: su correo y contraseña son `ADMIN_CORREO` y `ADMIN_PASSWORD` de `backend/.env`. Las personas de ejemplo (Mariana López, Luis Ramírez, etc.) **no tienen contraseña**; solo sirven para llenar el panel. Por eso, en este recorrido se crean un supervisor y un colaborador nuevos.
+- Para los agentes de IA, `backend/.env` debe tener los datos de Gemini o de Azure OpenAI ("Configurar la IA" en el README). Sin ellos, la plataforma funciona, pero cada agente muestra el aviso "La IA no está configurada".
+- Sin SMTP configurado, los correos no se envían: se guardan en `backend/correos_enviados/` y no hacen falta para el recorrido, porque la contraseña temporal también aparece en pantalla.
+
+### Paso 1. RH crea a un supervisor
+1. Entra con la cuenta de RH.
+2. En **Personal**, da clic en **+ Dar de alta**.
+3. Llena el formulario:
+   - **Rol:** Supervisor / Responsable.
+   - **Nombre completo:** por ejemplo, `Pedro Gómez`.
+   - **Correo corporativo:** por ejemplo, `pedro.gomez@prueba.test`.
+   - **Puesto:** por ejemplo, `Líder de Desarrollo`.
+   - **Área:** Desarrollo.
+4. Da clic en **Dar de alta**.
+5. Copia la **contraseña temporal** que aparece en la tarjeta. Solo se muestra una vez; si se pierde, **Contraseña temporal** genera otra.
+
+### Paso 2. RH crea a un colaborador
+1. Otra vez **+ Dar de alta**, con **Rol:** Colaborador.
+2. Nombre, por ejemplo, `Ana Torres`, y correo, por ejemplo, `ana.torres@prueba.test`.
+3. **Responsable:** el supervisor del paso 1.
+4. Copia su contraseña temporal.
+
+### Paso 3. El colaborador entra y avanza
+Cierra la sesión de RH con **Salir**, o usa una ventana de incógnito para tener las dos sesiones abiertas.
+
+1. Entra con el correo del colaborador y su contraseña temporal. La plataforma pide crear una contraseña propia: mínimo 8 caracteres, con letras y al menos un número.
+2. **Inicio:** se ven el avance, las tareas por etapa y **Recomendaciones para ti**, del agente **Senda (Agente Recomendador)**.
+3. **Documentos:** sube un PDF, JPG o PNG en cualquier tipo de documento. Queda "En revisión" para RH.
+4. **Capacitación:** los módulos se abren en orden.
+   1. En **Bienvenida a PluriOne**, marca cada sección con **Marcar como leído** y luego da clic en **Completar módulo**.
+   2. Repite con **Políticas internas**.
+   3. Así se desbloquea **Seguridad de la información**: léelo y complétalo también.
+
+### Paso 4. Provocar el escalamiento
+1. En **Evaluaciones**, abre **Seguridad de la información**. Pide 70 % para aprobar y tiene 3 intentos.
+2. Contesta mal: por ejemplo, la primera opción de cada pregunta da 25 %. Luego da clic en **Enviar respuestas**.
+3. Debajo del resultado aparece **Vera (Agente Evaluador)**, que explica cada error y los **temas a reforzar**.
+4. Da clic en **Reintentar** y repite hasta usar los **3 intentos**. La evaluación queda en **Sin intentos**.
+
+### Paso 5. El supervisor ve el escalamiento
+1. Entra con el supervisor del paso 1 y crea su contraseña.
+2. En **Mi equipo** aparece un aviso rojo con las personas que agotaron sus intentos. En la fila de Ana Torres sale **"Agotó intentos · Seguridad de la información"**.
+3. Abre su detalle:
+   - **Senda (Agente Recomendador)** sugiere cómo apoyarla.
+   - En **Evaluaciones**, el botón **Dar un intento más** le devuelve un intento.
+   - En **Comentarios y observaciones** se le puede dejar un mensaje. El colaborador lo ve en su **Inicio**.
+
+### Paso 6. RH revisa
+1. Entra otra vez con RH.
+2. **Panel:** avance general, retrasos y temas más consultados al Tutor.
+3. **Documentos:** valida o rechaza, con motivo, el archivo del paso 3. El colaborador ve el resultado en su sección **Documentos**.
+4. **Asistente de RH:** pregunta, por ejemplo, "¿Quién está retrasado?". Responde **Omnia (Asistente de RH)** con los datos reales de la plataforma.
+
+### Dónde se ve cada uno de los 5 agentes
+| Agente | Quién lo usa | Dónde |
+|---|---|---|
+| **Orquestador** | Colaborador | No tiene pantalla propia: en **Tutor IA** decide si cada pregunta la contesta Navi o Nova. Cada respuesta muestra el nombre del agente que contestó. |
+| **Navi (Tutor de Onboarding)** | Colaborador | **Tutor IA**. Pregunta algo de PluriOne, por ejemplo "¿Cuál es el horario de trabajo?" o "¿Qué me falta por hacer?". Responde con las fuentes de la base de conocimiento. |
+| **Nova (Conocimiento General)** | Colaborador | **Tutor IA**. Pregunta algo general, por ejemplo "¿Qué es una API?". |
+| **Vera (Agente Evaluador)** | Colaborador | **Evaluaciones**, debajo del resultado de cada intento (paso 4). |
+| **Senda (Agente Recomendador)** | Colaborador y supervisor | **Inicio** del colaborador y detalle del colaborador en **Mi equipo** (pasos 3 y 5). |
+| **Omnia (Asistente de RH)** | RH | **Asistente de RH** (paso 6). |
+
+Los nombres de los agentes se cambian en `backend/app/nombres_agentes.py`.
+
