@@ -110,10 +110,15 @@ def test_rh_elimina_a_una_persona(client, admin, crear):
     assert client.delete(f"/api/rh/usuarios/{uid}", headers=admin).status_code == 404
 
     # Al eliminar a un responsable, sus colaboradores quedan sin asignar
-    _, otro = crear(supervisor_id=sid)
+    # y lo que escribió sobre ellos se conserva como "Usuario eliminado"
+    otro_h, otro = crear(supervisor_id=sid)
+    assert client.post(f"/api/supervisor/colaboradores/{otro}/comentarios", headers=sup_h,
+                       json={"texto": "Revisa el módulo de seguridad"}).status_code == 200
     assert client.delete(f"/api/rh/usuarios/{sid}", headers=admin).status_code == 200
     fila = next(c for c in client.get("/api/rh/colaboradores", headers=admin).json() if c["id"] == otro)
     assert fila["supervisor_id"] is None
+    obs = client.get("/api/yo/resumen", headers=otro_h).json()["observaciones"]
+    assert [(o["texto"], o["autor"]) for o in obs] == [("Revisa el módulo de seguridad", "Usuario eliminado")]
 
     yo = client.get("/api/auth/yo", headers=admin).json()
     assert client.delete(f"/api/rh/usuarios/{yo['id']}", headers=admin).status_code == 400

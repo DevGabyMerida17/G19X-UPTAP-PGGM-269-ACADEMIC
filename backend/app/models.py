@@ -176,11 +176,16 @@ class Comentario(Base):
     __tablename__ = "comentarios"
     id: Mapped[int] = mapped_column(primary_key=True)
     colaborador_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
-    autor_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    # Queda vacío si se eliminó a quien lo escribió: el comentario se conserva en el historial del colaborador.
+    autor_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"))
     tipo: Mapped[str] = mapped_column(String(20), default="comentario")  # comentario, solicitud, apoyo, seguimiento
     texto: Mapped[str] = mapped_column(Text)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
-    autor: Mapped[Usuario] = relationship(foreign_keys=[autor_id])
+    autor: Mapped[Usuario | None] = relationship(foreign_keys=[autor_id])
+
+    @property
+    def autor_nombre(self) -> str:
+        return self.autor.nombre if self.autor else "Usuario eliminado"
 
 
 class ConsultaTutor(Base):

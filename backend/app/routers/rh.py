@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from .. import asistente_rh, cache, config, correo, ia, permisos, rag
@@ -234,6 +234,7 @@ def nueva_password_temporal(uid: int, tareas: BackgroundTasks, yo: Usuario = Dep
 @router.delete("/usuarios/{uid}", dependencies=[Depends(requiere_permiso(permisos.PERSONAL_GESTIONAR))])
 def eliminar_usuario(uid: int, yo: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
     """Borra a la persona y todo su registro (avance, evaluaciones, documentos, comentarios y consultas).
+    Los comentarios que escribió sobre otros colaboradores se conservan sin autor.
     No se puede deshacer; para conservar el historial está "Dar de baja"."""
     u = db.get(Usuario, uid)
     if not u:
@@ -246,7 +247,9 @@ def eliminar_usuario(uid: int, yo: Usuario = Depends(usuario_actual), db: Sessio
         c.supervisor_id = None
     for tabla in (ProgresoModulo, Evaluacion, TareaColaborador, DocumentoColaborador, ConsultaTutor):
         db.execute(delete(tabla).where(tabla.usuario_id == uid))
-    db.execute(delete(Comentario).where(or_(Comentario.colaborador_id == uid, Comentario.autor_id == uid)))
+    db.execute(delete(Comentario).where(Comentario.colaborador_id == uid))
+    # Lo que escribió sobre otros colaboradores se conserva, como "Usuario eliminado"
+    db.execute(update(Comentario).where(Comentario.autor_id == uid).values(autor_id=None))
     db.delete(u)
     db.commit()
     for a in archivos:

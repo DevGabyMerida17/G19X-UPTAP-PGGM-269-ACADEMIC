@@ -77,7 +77,7 @@ def detalle(uid: int, sup: Usuario = Depends(supervisor), db: Session = Depends(
         **ficha(db, u),
         "modulos": estado_modulos(db, u),
         "evaluaciones": evaluaciones_de(db, u),
-        "comentarios": [{"id": c.id, "tipo": c.tipo, "texto": c.texto, "autor": c.autor.nombre,
+        "comentarios": [{"id": c.id, "tipo": c.tipo, "texto": c.texto, "autor": c.autor_nombre,
                          "fecha": c.fecha.isoformat()} for c in comentarios],
     }
 

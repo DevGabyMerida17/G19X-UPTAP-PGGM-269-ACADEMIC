@@ -43,7 +43,7 @@ def resumen(u: Usuario = Depends(colaborador), db: Session = Depends(get_db)):
         "modulos": estado_modulos(db, u),
         "documentos": documentos_de(db, u),
         "evaluaciones": evaluaciones_de(db, u),
-        "observaciones": [{"texto": c.texto, "tipo": c.tipo, "autor": c.autor.nombre, "fecha": c.fecha.isoformat()}
+        "observaciones": [{"texto": c.texto, "tipo": c.tipo, "autor": c.autor_nombre, "fecha": c.fecha.isoformat()}
                           for c in observaciones],
     }
 
