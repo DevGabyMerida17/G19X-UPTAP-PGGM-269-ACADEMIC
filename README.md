@@ -68,6 +68,8 @@ Para que respondan, el backend necesita los datos de un modelo de IA en `backend
 
 ## Uso de IA
 
+### En la plataforma
+
 - **Proveedor:** Azure OpenAI Service es el principal; mientras no haya suscripción se usa Google Gemini (ver [Estado de Azure OpenAI y Microsoft Entra ID](#estado-de-azure-openai-y-microsoft-entra-id)). La conexión está en `backend/app/ia.py`.
 - **Qué datos recibe el modelo:**
   - Tutor y Conocimiento General: la pregunta, los últimos mensajes del chat, el nombre de pila y el resumen del avance (puesto, área, estado de módulos, documentos, evaluaciones y tareas pendientes).
@@ -81,6 +83,10 @@ Para que respondan, el backend necesita los datos de un modelo de IA en `backend
 - **Costos y límites:** máximo de mensajes por minuto en el Tutor y el Asistente de RH (`TUTOR_LIMITE_POR_MINUTO`), historial acotado, y la retroalimentación y las recomendaciones se guardan para no generarlas dos veces.
 - **Si la IA falla o no está configurada,** la plataforma sigue funcionando y cada agente avisa que no está disponible.
 - **Pruebas:** `backend/tests/` usa un modelo falso, así que no se envían datos a ningún proveedor al correr `pytest`.
+
+### En el desarrollo
+
+Durante el desarrollo se usó un asistente de programación con IA (Claude Code, de Anthropic) como apoyo para escribir y revisar parte del código y de las pruebas. Otra parte del código la programó directamente quien desarrolla el proyecto, que además estuvo a cargo de los requisitos, las decisiones de diseño y la revisión de cada cambio, con las pruebas automáticas y probando la plataforma.
 
 ## Ejecutar con Docker (recomendado)
 
