@@ -6,8 +6,10 @@ Ejecutar desde la carpeta backend:
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import TimeoutError as BaseOcupada
 
 from . import config, rag, seed
 from .db import SessionLocal
@@ -29,6 +31,16 @@ app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_meth
 
 for r in (auth, colaborador, rh, supervisor, tiempo_real):
     app.include_router(r.router)
+
+
+@app.exception_handler(BaseOcupada)
+async def base_ocupada(_request: Request, _exc: BaseOcupada):
+    """Todas las conexiones a la base están en uso: se pide reintentar en lugar de devolver un error 500."""
+    logging.getLogger("db").warning("Conexiones a la base de datos agotadas; se respondió 503")
+    return JSONResponse(
+        status_code=503, headers={"Retry-After": "5"},
+        content={"detail": "La plataforma está atendiendo a muchas personas en este momento. Intenta de nuevo en unos segundos."},
+    )
 
 
 @app.get("/api/salud")

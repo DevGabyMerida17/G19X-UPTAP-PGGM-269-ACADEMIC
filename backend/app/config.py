@@ -15,6 +15,13 @@ def _env(nombre: str, defecto: str = "") -> str:
 # Base de datos (PostgreSQL). Para pruebas locales sin Docker se acepta sqlite:///archivo.db
 DATABASE_URL = _env("DATABASE_URL", "postgresql+psycopg://onboarding:onboarding@localhost:5432/onboarding")
 
+# Conexiones simultáneas a la base de datos. El servidor atiende hasta 40 peticiones a la vez, así que
+# 20 + 20 cubre ese máximo; si aun así se llenan, la petición espera DB_POOL_TIMEOUT segundos y se
+# responde "intenta de nuevo" (503) en lugar de un error.
+DB_POOL_SIZE = int(_env("DB_POOL_SIZE", "20"))
+DB_MAX_OVERFLOW = int(_env("DB_MAX_OVERFLOW", "20"))
+DB_POOL_TIMEOUT = int(_env("DB_POOL_TIMEOUT", "10"))
+
 # Redis: sesiones, historial del chat, límite de peticiones y eventos en tiempo real.
 # "memory://" usa un Redis simulado en memoria (solo para pruebas locales).
 REDIS_URL = _env("REDIS_URL", "redis://localhost:6379/0")

@@ -144,6 +144,19 @@ def test_rh_elimina_a_una_persona(client, admin, crear):
     yo = client.get("/api/auth/yo", headers=admin).json()
     assert client.delete(f"/api/rh/usuarios/{yo['id']}", headers=admin).status_code == 400
 
+def test_base_ocupada_pide_reintentar(client, admin, monkeypatch):
+    """Si todas las conexiones a la base están en uso, se responde 503 con un aviso y no un error 500."""
+    from sqlalchemy.exc import TimeoutError as BaseOcupada
+    from app.routers import rh
+
+    def ocupada(_db):
+        raise BaseOcupada("QueuePool limit reached")
+    monkeypatch.setattr(rh, "_colaboradores", ocupada)
+    r = client.get("/api/rh/colaboradores", headers=admin)
+    assert r.status_code == 503 and r.headers["Retry-After"] == "5"
+    assert "Intenta de nuevo" in r.json()["detail"]
+
+
 def test_permisos_por_rol(client, crear):
     h, _ = crear()
     assert client.get("/api/rh/panel", headers=h).status_code == 403
