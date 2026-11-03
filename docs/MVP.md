@@ -124,7 +124,7 @@ Sirve para revisar el MVP a mano, de principio a fin. Toma unos 20 minutos.
 
 **Antes de empezar**
 - Levanta el proyecto como dice el [README](../README.md) (con Docker o sin Docker) y abre http://localhost:5173.
-- La única cuenta con contraseña es la de **RH**: su correo y contraseña son `ADMIN_CORREO` y `ADMIN_PASSWORD` de `backend/.env`. Las personas de ejemplo (Ana Torres, Adrian Lazos y Luis Ruiz, con su responsable Mariana López) **no tienen contraseña**; solo sirven para llenar el panel. Por eso, en este recorrido se crean un supervisor y un colaborador nuevos.
+- La única cuenta con contraseña es la de **RH**: su correo y contraseña son `ADMIN_CORREO` y `ADMIN_PASSWORD` de `backend/.env`. Las personas de ejemplo (Citlali Garcia, Jose Alfonso, Jose Alvarez, Adrian Lazos, Alexis Perez, Jesús Rizo y Alberto Guzman, con su responsable Mariana López, todas con correo `@estadia.plurione`) **no tienen contraseña**; solo sirven para llenar el panel. Por eso, en este recorrido se crean un supervisor y un colaborador nuevos.
 - Para los agentes de IA, `backend/.env` debe tener los datos de Gemini o de Azure OpenAI ("Configurar la IA" en el README). Sin ellos, la plataforma funciona, pero cada agente muestra el aviso "La IA no está configurada".
 - **Opcional, entrar con Microsoft:** si `backend/.env` tiene `ENTRA_TENANT_ID` y `ENTRA_CLIENT_ID`, en cualquier paso se puede usar **Continuar con Microsoft** con una cuenta del directorio que RH haya dado de alta con el mismo correo. Microsoft pide elegir la cuenta y la contraseña cada vez.
 - Sin SMTP configurado, los correos no se envían: se guardan en `backend/correos_enviados/` y no hacen falta para el recorrido, porque la contraseña temporal también aparece en pantalla.

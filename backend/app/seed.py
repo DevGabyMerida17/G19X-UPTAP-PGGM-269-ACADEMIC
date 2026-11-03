@@ -59,15 +59,20 @@ PREGUNTAS_SEGURIDAD = [
 
 # Responsable de ejemplo: nombre, correo, puesto, área
 DEMO_SUPERVISORES = [
-    ("Mariana López", "mariana.lopez@demo.pluri", "Líder de Desarrollo", "Desarrollo"),
+    ("Mariana López", "mariana.lopez@estadia.plurione", "Líder de Desarrollo", "Desarrollo"),
 ]
 
 # nombre, correo, puesto, área, días desde ingreso, módulos completados, tareas hechas, docs validados,
 # docs en revisión, calificaciones de cada intento en Seguridad, correo del responsable
+_SUP = "mariana.lopez@estadia.plurione"
 DEMO = [
-    ("Ana Torres", "ana.torres@demo.pluri", "Desarrolladora", "Desarrollo", 30, 0, 0, 0, 3, [], "mariana.lopez@demo.pluri"),
-    ("Adrian Lazos", "adrian.lazos@demo.pluri", "Desarrollador", "Desarrollo", 28, 2, 0, 0, 0, [25, 0], "mariana.lopez@demo.pluri"),
-    ("Luis Ruiz", "luis.ruiz@demo.pluri", "Colaborador", "Consultoría", 8, 0, 0, 0, 1, [], "mariana.lopez@demo.pluri"),
+    ("Citlali Garcia", "citlali.garcia@estadia.plurione", "Desarrolladora", "Desarrollo", 40, 4, 10, 4, 0, [92], _SUP),
+    ("Jose Alfonso", "jose.alfonso@estadia.plurione", "Consultor", "Consultoría", 20, 2, 5, 2, 1, [], _SUP),
+    ("Jose Alvarez", "jose.alvarez@estadia.plurione", "QA Tester", "Desarrollo", 25, 2, 4, 2, 0, [40, 55, 60], _SUP),
+    ("Adrian Lazos", "adrian.lazos@estadia.plurione", "Desarrollador", "Desarrollo", 28, 2, 0, 0, 0, [25, 0], _SUP),
+    ("Alexis Perez", "alexis.perez@estadia.plurione", "Capacitador", "Capacitación", 3, 0, 2, 0, 2, [], _SUP),
+    ("Jesús Rizo", "jesus.rizo@estadia.plurione", "Desarrollador", "Desarrollo", 10, 1, 3, 1, 1, [], _SUP),
+    ("Alberto Guzman", "alberto.guzman@estadia.plurione", "Analista de RH", "Recursos Humanos", 35, 1, 3, 1, 0, [], _SUP),
 ]
 # PDF mínimo para que los documentos en revisión de ejemplo se puedan abrir en la vista previa de RH
 PDF_EJEMPLO = (b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
