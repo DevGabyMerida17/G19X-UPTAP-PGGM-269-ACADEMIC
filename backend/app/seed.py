@@ -57,21 +57,23 @@ PREGUNTAS_SEGURIDAD = [
      "Las credenciales son personales; compartirlas rompe la trazabilidad de los accesos."),
 ]
 
-# Responsables de ejemplo: nombre, correo, puesto, área
+# Responsable de ejemplo: nombre, correo, puesto, área
 DEMO_SUPERVISORES = [
     ("Mariana López", "mariana.lopez@demo.pluri", "Líder de Desarrollo", "Desarrollo"),
-    ("Jorge Castillo", "jorge.castillo@demo.pluri", "Gerente de Consultoría", "Consultoría"),
 ]
 
 # nombre, correo, puesto, área, días desde ingreso, módulos completados, tareas hechas, docs validados,
-# calificación seguridad, correo del responsable
+# docs en revisión, calificaciones de cada intento en Seguridad, correo del responsable
 DEMO = [
-    ("Luis Ramírez", "luis.ramirez@demo.pluri", "Consultor", "Consultoría", 39, 4, 10, 4, 92, "jorge.castillo@demo.pluri"),
-    ("Sofía Méndez", "sofia.mendez@demo.pluri", "Capacitadora", "Capacitación", 46, 1, 3, 1, None, "jorge.castillo@demo.pluri"),
-    ("Diego Salas", "diego.salas@demo.pluri", "Desarrollador", "Desarrollo", 2, 0, 2, 0, None, "mariana.lopez@demo.pluri"),
-    ("Carlos Ruiz", "carlos.ruiz@demo.pluri", "QA Tester", "Desarrollo", 24, 2, 5, 2, 65, "mariana.lopez@demo.pluri"),
-    ("Valeria Núñez", "valeria.nunez@demo.pluri", "Analista de RH", "Recursos Humanos", 10, 1, 4, 1, None, None),
+    ("Ana Torres", "ana.torres@demo.pluri", "Desarrolladora", "Desarrollo", 30, 0, 0, 0, 3, [], "mariana.lopez@demo.pluri"),
+    ("Adrian Lazos", "adrian.lazos@demo.pluri", "Desarrollador", "Desarrollo", 28, 2, 0, 0, 0, [25, 0], "mariana.lopez@demo.pluri"),
+    ("Luis Ruiz", "luis.ruiz@demo.pluri", "Colaborador", "Consultoría", 8, 0, 0, 0, 1, [], "mariana.lopez@demo.pluri"),
 ]
+# PDF mínimo para que los documentos en revisión de ejemplo se puedan abrir en la vista previa de RH
+PDF_EJEMPLO = (b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+               b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 200]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n"
+               b"4 0 obj<</Length 52>>stream\nBT /F1 14 Tf 40 100 Td (Documento de ejemplo) Tj ET\nendstream endobj\n"
+               b"5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n")
 
 
 def leer_markdown(ruta) -> tuple[dict, str]:
@@ -186,7 +188,7 @@ def _cargar_demo(db: Session) -> None:
         db.flush()
         sups[correo_] = s.id
 
-    for nombre, correo_, puesto, area, dias, n_mod, n_tar, n_doc, calif, sup in DEMO:
+    for nombre, correo_, puesto, area, dias, n_mod, n_tar, n_val, n_rev, intentos_, sup in DEMO:
         u = Usuario(nombre=nombre, correo=correo_, puesto=puesto, area=area, rol="colaborador",
                     fecha_ingreso=date.today() - timedelta(days=dias), programa_id=general.id,
                     supervisor_id=sups.get(sup))
@@ -194,9 +196,16 @@ def _cargar_demo(db: Session) -> None:
         db.flush()
         for m in modulos[:n_mod]:
             db.add(ProgresoModulo(usuario_id=u.id, modulo_id=m.id, secciones_leidas=len(m.secciones), completado=True))
-        if calif is not None:
+        for calif in intentos_:
             db.add(Evaluacion(usuario_id=u.id, modulo_id=seguridad.id, calificacion=calif, aprobada=calif >= 70, respuestas=[]))
         for t in tareas[:n_tar]:
             db.add(TareaColaborador(usuario_id=u.id, tarea_id=t.id, hecha=True))
-        for t in tipos[:n_doc]:
+        for t in tipos[:n_val]:
             db.add(DocumentoColaborador(usuario_id=u.id, tipo_id=t.id, estado="validado", archivo_nombre="ejemplo.pdf"))
+        for t in tipos[n_val:n_val + n_rev]:
+            carpeta = config.UPLOADS_DIR / str(u.id)
+            carpeta.mkdir(parents=True, exist_ok=True)
+            ruta = carpeta / f"ejemplo-{t.id}.pdf"
+            ruta.write_bytes(PDF_EJEMPLO)
+            db.add(DocumentoColaborador(usuario_id=u.id, tipo_id=t.id, estado="revision", archivo_nombre="ejemplo.pdf",
+                                        archivo_ruta=str(ruta)))

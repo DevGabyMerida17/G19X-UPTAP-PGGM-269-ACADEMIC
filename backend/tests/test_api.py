@@ -223,25 +223,29 @@ def test_documentos_y_revision_rh(client, admin, crear):
     assert doc["estado"] == "rechazado" and doc["nota"] == "Falta la firma"
 
 
-def test_panel_y_responsables(client, admin):
+def test_panel_y_responsables(client, admin, crear):
     p = client.get("/api/rh/panel", headers=admin).json()
-    luis = next(x for x in p["procesos"] if x["nombre"] == "Luis Ramírez")
-    assert luis["estado"] == "completado" and luis["supervisor"] == "Jorge Castillo"
-    assert next(x for x in p["procesos"] if x["nombre"] == "Sofía Méndez")["estado"] == "retrasado"
+    luis = next(x for x in p["procesos"] if x["correo"] == "luis.ruiz@demo.pluri")
+    assert luis["estado"] == "en_curso" and luis["supervisor"] == "Mariana López"
+    assert next(x for x in p["procesos"] if x["correo"] == "ana.torres@demo.pluri")["estado"] == "retrasado"
+    # Los documentos de ejemplo en revisión se pueden abrir en la vista previa
+    doc = next(d for d in client.get("/api/rh/documentos", headers=admin).json()
+               if d["colaborador"] == "Ana Torres" and d["tiene_archivo"])
+    assert client.get(f"/api/rh/documentos/{doc['id']}/archivo", headers=admin).content.startswith(b"%PDF")
 
+    _, sid = crear(rol="supervisor", nombre="Jorge Castillo")
     resp = client.get("/api/rh/responsables", headers=admin).json()
-    mariana = next(s for s in resp if s["nombre"] == "Mariana López")
-    jorge = next(s for s in resp if s["nombre"] == "Jorge Castillo")
+    assert {"Mariana López", "Jorge Castillo"} <= {s["nombre"] for s in resp}
 
-    # Reasignar a Luis con Mariana
-    r = client.patch(f"/api/rh/usuarios/{luis['id']}", headers=admin, json={"supervisor_id": mariana["id"]})
-    assert r.json()["supervisor"] == "Mariana López"
+    # Reasignar a Luis con otro responsable
+    r = client.patch(f"/api/rh/usuarios/{luis['id']}", headers=admin, json={"supervisor_id": sid})
+    assert r.json()["supervisor"] == "Jorge Castillo"
     # Quitar responsable
     r = client.patch(f"/api/rh/usuarios/{luis['id']}", headers=admin, json={"supervisor_id": None})
     assert r.json()["supervisor"] is None
     # Un colaborador no puede ser responsable
     assert client.patch(f"/api/rh/usuarios/{luis['id']}", headers=admin, json={"supervisor_id": luis["id"]}).status_code == 400
-    client.patch(f"/api/rh/usuarios/{luis['id']}", headers=admin, json={"supervisor_id": jorge["id"]})
+    client.patch(f"/api/rh/usuarios/{luis['id']}", headers=admin, json={"supervisor_id": sid})
 
     personal = client.get("/api/rh/personal", headers=admin).json()
     assert {"rh", "supervisor"} <= {x["rol"] for x in personal}

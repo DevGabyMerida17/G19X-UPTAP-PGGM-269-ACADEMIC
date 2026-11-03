@@ -124,7 +124,7 @@ Sirve para revisar el MVP a mano, de principio a fin. Toma unos 20 minutos.
 
 **Antes de empezar**
 - Levanta el proyecto como dice el [README](../README.md) (con Docker o sin Docker) y abre http://localhost:5173.
-- La única cuenta con contraseña es la de **RH**: su correo y contraseña son `ADMIN_CORREO` y `ADMIN_PASSWORD` de `backend/.env`. Las personas de ejemplo (Mariana López, Luis Ramírez, etc.) **no tienen contraseña**; solo sirven para llenar el panel. Por eso, en este recorrido se crean un supervisor y un colaborador nuevos.
+- La única cuenta con contraseña es la de **RH**: su correo y contraseña son `ADMIN_CORREO` y `ADMIN_PASSWORD` de `backend/.env`. Las personas de ejemplo (Ana Torres, Adrian Lazos y Luis Ruiz, con su responsable Mariana López) **no tienen contraseña**; solo sirven para llenar el panel. Por eso, en este recorrido se crean un supervisor y un colaborador nuevos.
 - Para los agentes de IA, `backend/.env` debe tener los datos de Gemini o de Azure OpenAI ("Configurar la IA" en el README). Sin ellos, la plataforma funciona, pero cada agente muestra el aviso "La IA no está configurada".
 - **Opcional, entrar con Microsoft:** si `backend/.env` tiene `ENTRA_TENANT_ID` y `ENTRA_CLIENT_ID`, en cualquier paso se puede usar **Continuar con Microsoft** con una cuenta del directorio que RH haya dado de alta con el mismo correo. Microsoft pide elegir la cuenta y la contraseña cada vez.
 - Sin SMTP configurado, los correos no se envían: se guardan en `backend/correos_enviados/` y no hacen falta para el recorrido, porque la contraseña temporal también aparece en pantalla.
@@ -143,7 +143,7 @@ Sirve para revisar el MVP a mano, de principio a fin. Toma unos 20 minutos.
 
 ### Paso 2. RH crea a un colaborador
 1. Otra vez **+ Dar de alta**, con **Rol:** Colaborador.
-2. Nombre, por ejemplo, `Ana Torres`, y correo, por ejemplo, `ana.torres@prueba.test`.
+2. Nombre, por ejemplo, `Sofía Méndez`, y correo, por ejemplo, `sofia.mendez@prueba.test`.
 3. **Responsable:** el supervisor del paso 1.
 4. Copia su contraseña temporal.
 
@@ -166,7 +166,7 @@ Cierra la sesión de RH con **Salir**, o usa una ventana de incógnito para tene
 
 ### Paso 5. El supervisor ve el escalamiento
 1. Entra con el supervisor del paso 1 y crea su contraseña.
-2. En **Mi equipo** aparece un aviso rojo con las personas que agotaron sus intentos. En la fila de Ana Torres sale **"Agotó intentos · Seguridad de la información"**.
+2. En **Mi equipo** aparece un aviso rojo con las personas que agotaron sus intentos. En la fila de Sofía Méndez sale **"Agotó intentos · Seguridad de la información"**.
 3. Abre su detalle:
    - **Senda (Agente Recomendador)** sugiere cómo apoyarla.
    - En **Evaluaciones**, el botón **Dar un intento más** le devuelve un intento.
