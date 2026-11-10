@@ -2,6 +2,7 @@
 import hashlib
 import json
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
@@ -25,6 +26,8 @@ router = APIRouter(prefix="/api/yo", tags=["colaborador"])
 colaborador = requiere_permiso(ONBOARDING_PROPIO)
 
 EXTENSIONES = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+# Se revisa el contenido real del archivo (sus primeros bytes), no solo su extensión.
+FIRMAS_DOCUMENTO = {b"%PDF-": ".pdf", b"\xff\xd8\xff": ".jpg", b"\x89PNG\r\n\x1a\n": ".png"}
 
 
 def _avisar(u: Usuario):
@@ -234,6 +237,9 @@ async def subir_documento(tipo_id: int, archivo: UploadFile = File(...), u: Usua
     contenido = await archivo.read(config.MAX_ARCHIVO_MB * 1024 * 1024 + 1)
     if len(contenido) > config.MAX_ARCHIVO_MB * 1024 * 1024:
         raise HTTPException(400, f"El archivo supera {config.MAX_ARCHIVO_MB} MB.")
+    real = next((e for firma, e in FIRMAS_DOCUMENTO.items() if contenido.startswith(firma)), None)
+    if real != (".jpg" if ext == ".jpeg" else ext):
+        raise HTTPException(400, "El archivo no es un PDF, JPG o PNG válido, o su contenido no coincide con su extensión.")
 
     doc = db.scalar(select(DocumentoColaborador).where(DocumentoColaborador.usuario_id == u.id,
                                                        DocumentoColaborador.tipo_id == tipo_id))
@@ -244,10 +250,14 @@ async def subir_documento(tipo_id: int, archivo: UploadFile = File(...), u: Usua
     ruta = carpeta / f"{uuid.uuid4().hex}{ext}"
     ruta.write_bytes(contenido)
 
+    anterior = doc.archivo_ruta if doc else ""
     doc = doc or DocumentoColaborador(usuario_id=u.id, tipo_id=tipo_id)
     doc.estado, doc.nota, doc.archivo_nombre, doc.archivo_ruta, doc.actualizado_en = \
         "revision", "", nombre[:200], str(ruta), ahora()
     db.add(doc)
     db.commit()
+    # Al volver a subir, el archivo anterior ya no se usa: se borra para no dejar basura en el disco.
+    if anterior and anterior != str(ruta):
+        Path(anterior).unlink(missing_ok=True)
     cache.publicar("documento", id=u.id)
     return {"ok": True}

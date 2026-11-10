@@ -149,7 +149,7 @@ function Detalle({ id, volver }) {
               </form>
               <div className="list mt">
                 {c.comentarios.length === 0 ? <div className="muted small">Sin comentarios todavía.</div> : c.comentarios.map((n) => (
-                  <div key={n.id}><Chip estado="revision">{TIPOS[n.tipo] || n.tipo}</Chip><span style={{ flex: 1 }}>{n.texto}</span><span className="small muted">{fecha(n.fecha)}</span></div>
+                  <div key={n.id}><Chip estado="revision">{TIPOS[n.tipo] || n.tipo}</Chip><span style={{ flex: 1 }}>{n.texto}</span><span className="small muted">{n.autor} · {fecha(n.fecha)}</span></div>
                 ))}
               </div>
             </div>

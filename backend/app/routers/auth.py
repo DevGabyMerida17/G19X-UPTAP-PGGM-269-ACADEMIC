@@ -58,6 +58,8 @@ class LoginMicrosoft(BaseModel):
 
 class CambioPassword(BaseModel):
     nueva: str = Field(max_length=128)
+    # Solo se pide en el cambio voluntario; en el primer inicio basta con haber entrado con la temporal.
+    actual: str | None = Field(None, max_length=128)
 
     @field_validator("nueva")
     @classmethod
@@ -177,6 +179,9 @@ def guardar_password(datos: NuevaPassword, db: Session = Depends(get_db)):
 def cambiar_password(datos: CambioPassword, authorization: str | None = Header(None),
                      u: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
     """Primer inicio de sesión con la contraseña temporal de RH (o cambio voluntario)."""
+    # En el cambio voluntario se confirma la contraseña actual: así una sesión robada no basta para cambiarla.
+    if not u.debe_cambiar_password and not verificar_password(datos.actual or "", u.password_hash):
+        raise HTTPException(400, "La contraseña actual no es correcta.")
     if verificar_password(datos.nueva, u.password_hash):
         raise HTTPException(400, "La contraseña nueva debe ser distinta a la temporal.")
     u.password_hash = hash_password(datos.nueva)

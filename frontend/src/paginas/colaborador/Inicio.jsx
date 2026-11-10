@@ -109,9 +109,9 @@ export default function Inicio({ ir }) {
 
             {d.observaciones.length > 0 && (
               <div className="notice peach mt">
-                <b>Mensajes de tu supervisor</b>
+                <b>Mensajes para ti</b>
                 {d.observaciones.map((o, i) => (
-                  <p key={i} className="mt-s"><span className="chip wait">{TIPOS[o.tipo] || o.tipo}</span> {o.texto} <span className="small muted">· {fecha(o.fecha)}</span></p>
+                  <p key={i} className="mt-s"><span className="chip wait">{TIPOS[o.tipo] || o.tipo}</span> {o.texto} <span className="small muted">· {o.autor} · {fecha(o.fecha)}</span></p>
                 ))}
               </div>
             )}

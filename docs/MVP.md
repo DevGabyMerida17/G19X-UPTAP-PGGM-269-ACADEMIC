@@ -123,9 +123,9 @@ Conexión con el modelo (Azure OpenAI o Gemini): `backend/app/ia.py`. Nombres de
 Sirve para revisar el MVP a mano, de principio a fin. Toma unos 20 minutos.
 
 **Antes de empezar**
-- Levanta el proyecto como dice el [README](../README.md) (con Docker o sin Docker) y abre http://localhost:5173.
+- Levanta el proyecto como dice el [README](../README.md) y abre la plataforma: **http://localhost:8080** con Docker o **http://localhost:5173** sin Docker.
 - La única cuenta con contraseña es la de **RH**: su correo y contraseña son `ADMIN_CORREO` y `ADMIN_PASSWORD` de `backend/.env`. Las personas de ejemplo (Citlali Garcia, Jose Alfonso, Jose Alvarez, Adrian Lazos, Alexis Perez, Jesús Rizo y Alberto Guzman, con su responsable Mariana López, todas con correo `@estadia.plurione`) **no tienen contraseña**; solo sirven para llenar el panel. Por eso, en este recorrido se crean un supervisor y un colaborador nuevos.
-- Para los agentes de IA, `backend/.env` debe tener los datos de Gemini o de Azure OpenAI ("Configurar la IA" en el README). Sin ellos, la plataforma funciona, pero cada agente muestra el aviso "La IA no está configurada".
+- **Importante, agentes de IA:** `backend/.env` debe tener la clave de Gemini o los datos de Azure OpenAI ("Configurar la IA" en el README). **Sin ellos no se pueden seguir los agentes de los pasos 3 a 6** (Senda, Vera, Navi, Nova y Omnia): el resto de la plataforma funciona, pero cada agente muestra el aviso "La IA no está configurada".
 - **Opcional, entrar con Microsoft:** si `backend/.env` tiene `ENTRA_TENANT_ID` y `ENTRA_CLIENT_ID`, en cualquier paso se puede usar **Continuar con Microsoft** con una cuenta del directorio que RH haya dado de alta con el mismo correo. Microsoft pide elegir la cuenta y la contraseña cada vez.
 - Sin SMTP configurado, los correos no se envían: se guardan en `backend/correos_enviados/` y no hacen falta para el recorrido, porque la contraseña temporal también aparece en pantalla.
 
@@ -156,7 +156,7 @@ Cierra la sesión de RH con **Salir**, o usa una ventana de incógnito para tene
 4. **Capacitación:** los módulos se abren en orden.
    1. En **Bienvenida a PluriOne**, marca cada sección con **Marcar como leído** y luego da clic en **Completar módulo**.
    2. Repite con **Políticas internas**.
-   3. Así se desbloquea **Seguridad de la información**: léelo y complétalo también.
+   3. Así se desbloquea **Seguridad de la información**: marca sus secciones como leídas. Este módulo no tiene botón **Completar módulo**: al final aparece **Ir a la evaluación**, y el módulo se completa al aprobar esa evaluación (paso 4).
 
 ### Paso 4. Provocar el escalamiento
 1. En **Evaluaciones**, abre **Seguridad de la información**. Pide 70 % para aprobar y tiene 3 intentos.

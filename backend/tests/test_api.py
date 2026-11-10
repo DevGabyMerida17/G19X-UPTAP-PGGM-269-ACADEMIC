@@ -223,6 +223,23 @@ def test_documentos_y_revision_rh(client, admin, crear):
     assert doc["estado"] == "rechazado" and doc["nota"] == "Falta la firma"
 
 
+def test_documento_revisa_contenido_y_borra_el_anterior(client, crear):
+    from app import config
+    h, uid = crear()
+    tipo = client.get("/api/yo/resumen", headers=h).json()["documentos"][0]["tipo_id"]
+    subir = lambda nombre, datos: client.post(f"/api/yo/documentos/{tipo}", headers=h, files={"archivo": (nombre, datos)})
+
+    # La extensión no basta: el contenido debe ser de verdad un PDF, JPG o PNG, y coincidir con la extensión
+    assert subir("ine.pdf", b"MZ esto es un programa").status_code == 400
+    assert subir("ine.pdf", b"\x89PNG\r\n\x1a\n imagen").status_code == 400
+    assert subir("ine.jpeg", b"\xff\xd8\xff imagen").status_code == 200
+
+    # Al volver a subir queda solo el archivo nuevo en el disco
+    assert subir("ine.pdf", b"%PDF-1.4 segunda version").status_code == 200
+    archivos = list((config.UPLOADS_DIR / str(uid)).iterdir())
+    assert len(archivos) == 1 and archivos[0].read_bytes().startswith(b"%PDF")
+
+
 def test_panel_y_responsables(client, admin, crear):
     p = client.get("/api/rh/panel", headers=admin).json()
     por_correo = {x["correo"]: x for x in p["procesos"]}
@@ -324,6 +341,18 @@ def test_nombre_solo_letras_y_real(client, admin):
 
     r = alta("maría de la luz pérez", "maria.luz@prueba.test")
     assert r.status_code == 200 and r.json()["nombre"] == "María de la Luz Pérez"
+
+
+def test_cambio_voluntario_pide_la_actual(client, crear):
+    h, _ = crear()
+    correo = client.get("/api/auth/yo", headers=h).json()["correo"]
+    url ="/api/auth/cambiar-password"
+    assert client.post(url, headers=h, json={"nueva": "Nueva2026x"}).status_code == 400
+    assert client.post(url, headers=h, json={"nueva": "Nueva2026x", "actual": "Otra12345"}).status_code == 400
+    r = client.post(url, headers=h, json={"nueva": "Nueva2026x", "actual": PASSWORD})
+    assert r.status_code == 200
+    assert client.post("/api/auth/login", json={"correo": correo, "password": PASSWORD}).status_code == 401
+    assert client.post("/api/auth/login", json={"correo": correo, "password": "Nueva2026x"}).status_code == 200
 
 
 def test_password_sin_espacios(client, crear):

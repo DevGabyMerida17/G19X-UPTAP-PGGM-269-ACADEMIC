@@ -21,6 +21,14 @@ jobs:
           cache-dependency-path: backend/requirements*.txt
       - run: pip install -r requirements-dev.txt
       - run: pytest -q
+      # Las migraciones crean la base desde cero y coinciden con los modelos
+      - name: Migraciones (alembic upgrade head + check)
+        env:
+          DATABASE_URL: sqlite:///./ci.db
+          REDIS_URL: memory://
+        run: |
+          alembic upgrade head
+          alembic check
 
   frontend:
     name: Frontend (build)
